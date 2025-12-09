@@ -1,0 +1,4 @@
+package koto
+
+fun main() {
+}
