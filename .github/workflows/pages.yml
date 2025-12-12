@@ -35,13 +35,13 @@ jobs:
         run: |
           # TODO: use prebuilt mdgraph package
           cd docs
-          pnpm add https://github.com/intsuc/mdgraph
-          cd node_modules/mdgraph
+          git clone https://github.com/intsuc/mdgraph --depth 1
+          cd mdgraph
           pnpm install
           cd server
           pnpm build
           pnpm link
-          cd ../../..
+          cd ../..
           mdgraph build
       - name: Setup Pages
         uses: actions/configure-pages@v5
