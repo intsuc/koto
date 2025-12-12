@@ -1,5 +1,23 @@
 import type { ExtensionContext } from "vscode";
+import { LanguageClient } from "vscode-languageclient/node";
 
-export function activate(context: ExtensionContext) {}
+let client: LanguageClient;
 
-export function deactivate() {}
+export function activate(_context: ExtensionContext) {
+  client = new LanguageClient(
+    "koto",
+    "ヿ Language Server",
+    {
+      command: "koto",
+      args: ["lsp"],
+    },
+    {
+      documentSelector: [{ scheme: "file", language: "koto" }],
+    },
+  );
+  client.start();
+}
+
+export function deactivate() {
+  return client?.stop();
+}

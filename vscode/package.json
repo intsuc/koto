@@ -11,11 +11,24 @@
   ],
   "activationEvents": [],
   "main": "./out/extension.js",
-  "contributes": {},
+  "contributes": {
+    "languages": [
+      {
+        "id": "koto",
+        "aliases": [
+          "ヿ"
+        ],
+        "extensions": [
+          ".ヿ"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ]
+  },
   "scripts": {
     "vscode:prepublish": "pnpm run build",
-    "build": "rolldown src/extension.ts --file out/extension.js",
-    "watch": "rolldown src/extension.ts --file out/extension.js --watch"
+    "build": "rolldown -c",
+    "watch": "rolldown -w -c"
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.8",
@@ -23,5 +36,8 @@
     "@types/vscode": "^1.107.0",
     "rolldown": "1.0.0-beta.54",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
   }
 }
