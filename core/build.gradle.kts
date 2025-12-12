@@ -4,6 +4,7 @@ plugins {
 }
 
 dependencies {
+    implementation(project(":lsp"))
     implementation(libs.clikt)
     testImplementation(kotlin("test"))
 }

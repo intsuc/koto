@@ -1,8 +1,17 @@
 package koto
 
-import com.github.ajalt.clikt.core.NoOpCliktCommand
-import com.github.ajalt.clikt.core.main
+import com.github.ajalt.clikt.core.*
+import koto.lsp.KotoLanguageServer
 
 class Koto : NoOpCliktCommand()
 
-fun main(args: Array<String>) = Koto().main(args)
+class Lsp : CliktCommand() {
+    override fun help(context: Context): String = "Launch the language server"
+    override fun run() = KotoLanguageServer.launch(System.`in`, System.out)
+}
+
+fun main(args: Array<String>) = Koto()
+    .subcommands(
+        Lsp(),
+    )
+    .main(args)

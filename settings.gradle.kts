@@ -10,5 +10,6 @@ plugins {
 }
 
 include("core")
+include("lsp")
 
 rootProject.name = "koto"
