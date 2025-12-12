@@ -1,0 +1,11 @@
+{
+  "$schema": "./.mdgraph/schema.json",
+  "src": "src",
+  "out": "out",
+  "base": "/koto/",
+  "port": 3000,
+  "languages": [
+    "en",
+    "ja"
+  ]
+}
