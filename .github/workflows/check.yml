@@ -2,8 +2,15 @@ name: Check
 
 on:
   push:
+    branches:
+      - "main"
+    paths-ignore:
+      - "docs/**"
   pull_request:
-    branches: [main]
+    branches:
+      - "main"
+    paths-ignore:
+      - "docs/**"
   workflow_dispatch:
 
 jobs:
