@@ -3,5 +3,6 @@ kotlin = "2.3.0-RC3"
 
 [libraries]
 kotlinGradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+clikt = { group = "com.github.ajalt.clikt", name = "clikt", version = "5.0.1" }
 
 [plugins]
