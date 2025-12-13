@@ -1,8 +1,6 @@
 package koto.lsp
 
-import org.eclipse.lsp4j.InitializeParams
-import org.eclipse.lsp4j.InitializeResult
-import org.eclipse.lsp4j.ServerCapabilities
+import org.eclipse.lsp4j.*
 import org.eclipse.lsp4j.launch.LSPLauncher
 import org.eclipse.lsp4j.services.*
 import java.io.InputStream
@@ -23,6 +21,10 @@ class KotoLanguageServer private constructor() : LanguageClientAware, LanguageSe
     override fun initialize(params: InitializeParams): CompletableFuture<InitializeResult> {
         return completedFuture(InitializeResult().apply {
             capabilities = ServerCapabilities().apply {
+                setTextDocumentSync(TextDocumentSyncOptions().apply {
+                    openClose = true
+                    change = TextDocumentSyncKind.Full
+                })
             }
         })
     }
