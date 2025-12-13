@@ -5,6 +5,7 @@
 ## High-level goals
 
 - Provide low-level, predictable control suitable for real-time software (operating systems, game engines, audio processors).
+- Enable code sharing and interoperability across different execution environments (e.g. CPU/GPU).
 - Improve program correctness before execution on a best-effort basis using solvers and property-based testing, complemented by warnings and runtime errors.
 - Do not require external preprocessors; needing one indicates missing language features.
 - Provide rich editor/IDE support.
