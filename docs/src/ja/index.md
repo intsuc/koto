@@ -22,3 +22,16 @@
 ```koto
 type
 ```
+
+## 対応プラットフォーム
+
+### ティア1
+
+- [ ] x86-64 Linux Vulkan
+- [ ] AArch64 Linux Vulkan
+
+### ティア2
+
+- [ ] WebAssembly Browser WebGPU
+- [ ] x86-64 Windows Vulkan
+- [ ] AArch64 Windows Vulkan
