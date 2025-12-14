@@ -64,3 +64,8 @@ type
 - 強参照サイクルが静的に防止される参照カウント。
 - デフォルトでパックされた（アラインされていない）レイアウトを使用する。
 - ポインタータギングを活用する。
+
+## ランダムな資料
+
+- [Multi-Stage Programming with Splice Variables
+](https://tsung-ju.org/icfp25/)

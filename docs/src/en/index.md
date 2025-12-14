@@ -64,3 +64,8 @@ type
 - Reference counting where strong reference cycles are statically prevented.
 - Use packed (unaligned) layouts by default.
 - Leverage pointer tagging.
+
+## Random resources
+
+- [Multi-Stage Programming with Splice Variables
+](https://tsung-ju.org/icfp25/)
