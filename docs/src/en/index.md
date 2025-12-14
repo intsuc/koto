@@ -35,3 +35,32 @@ type
 - [ ] WebAssembly Browser WebGPU
 - [ ] x86-64 Windows Vulkan
 - [ ] AArch64 Windows Vulkan
+
+## Random ideas
+
+- Everything is an expression.
+- If we adopt an LL(1) grammar, autoregressive text models will always be able to generate syntactically correct code by applying logit bias.
+  - The property that adding tokens to the end of code with no errors will not introduce errors (except for temporary syntax errors).
+- Create a dataset about this language.
+  - Fine-tune existing LLMs using this dataset.
+- Design an LLM architecture specialized for this language.
+- Phase transitions of code:
+  1. During editing (LSP requests): perform the computation required for the response.
+  2. Before execution: perform runtime checks if necessary.
+  3. During execution: run the code.
+- Uniqueness / linearity types.
+  - Or more generally, fractional / quantitative types.
+- Ordered types.
+  - There are application examples to type states.
+- *n*-bit integer types (signed/unsigned).
+- Refinement types that are runtime-checked as needed.
+- A UTF-8 string type as a refinement type over a byte array.
+- Compile polymorphic code via existentialization.
+  - If you want to optimize to the extreme, you can specialize polymorphic code for concrete types via runtime code generation. (runtime monomorphization)
+  - Type cases are also possible.
+- Recursive functions that do not cause stack overflows.
+- Use a memory allocator that understands the language semantics.
+- Region-based memory management.
+- Reference counting where strong reference cycles are statically prevented.
+- Use packed (unaligned) layouts by default.
+- Leverage pointer tagging.
