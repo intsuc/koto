@@ -1,4 +1,4 @@
-package koto
+package koto.cli
 
 import com.github.ajalt.clikt.core.*
 import koto.lsp.KotoLanguageServer

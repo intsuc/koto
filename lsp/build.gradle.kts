@@ -3,6 +3,7 @@ plugins {
 }
 
 dependencies {
+    implementation(project(":core"))
     implementation(libs.lsp4j)
     testImplementation(kotlin("test"))
 }

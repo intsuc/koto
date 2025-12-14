@@ -1,12 +1,12 @@
 package koto.lsp
 
-import org.eclipse.lsp4j.DidChangeTextDocumentParams
-import org.eclipse.lsp4j.DidCloseTextDocumentParams
-import org.eclipse.lsp4j.DidOpenTextDocumentParams
-import org.eclipse.lsp4j.DidSaveTextDocumentParams
+import koto.core.parse
+import org.eclipse.lsp4j.*
 import org.eclipse.lsp4j.services.LanguageClient
 import org.eclipse.lsp4j.services.LanguageClientAware
 import org.eclipse.lsp4j.services.TextDocumentService
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletableFuture.completedFuture
 
 internal class KotoTextDocumentService : LanguageClientAware, TextDocumentService {
     private lateinit var client: LanguageClient
@@ -17,22 +17,28 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
     }
 
     override fun didOpen(params: DidOpenTextDocumentParams) {
-        val uri = params.textDocument.uri
         val text = params.textDocument.text
-        documents[uri] = text
+        documents[params.textDocument.uri] = text
     }
 
     override fun didChange(params: DidChangeTextDocumentParams) {
-        val uri = params.textDocument.uri
         val text = params.contentChanges.last().text
-        documents[uri] = text
+        documents[params.textDocument.uri] = text
     }
 
     override fun didClose(params: DidCloseTextDocumentParams) {
-        val uri = params.textDocument.uri
-        documents.remove(uri)
+        documents.remove(params.textDocument.uri)
     }
 
     override fun didSave(params: DidSaveTextDocumentParams) {
+    }
+
+    override fun diagnostic(params: DocumentDiagnosticParams): CompletableFuture<DocumentDiagnosticReport> {
+        val text = documents[params.textDocument.uri]!!
+        val result = parse(text)
+        return completedFuture(DocumentDiagnosticReport(RelatedFullDocumentDiagnosticReport(result.errors.map { error ->
+            val range = error.span.toRange(result.lineStarts)
+            Diagnostic(range, error.message)
+        })))
     }
 }
