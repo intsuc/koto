@@ -67,5 +67,12 @@ type
 
 ## ランダムな資料
 
-- [Multi-Stage Programming with Splice Variables](https://tsung-ju.org/icfp25/)
+- [Using dependent types to express modular structure](https://doi.org/10.1145/512644.512670)
+- [Linearity and Uniqueness: An Entente Cordiale](https://doi.org/10.1007/978-3-030-99336-8_13)
+- [Functional Ownership through Fractional Uniqueness](https://doi.org/10.1145/3649848)
+- [Law and Order for Typestate with Borrowing](https://doi.org/10.1145/3689763)
 - [Rows and Capabilities as Modal Effects](https://arxiv.org/abs/2507.10301)
+- [Multi-Stage Programming with Splice Variables](https://tsung-ju.org/icfp25/)
+- [Compiling Swift Generics](https://download.swift.org/docs/assets/generics.pdf)
+- [The Simple Essence of Monomorphization](https://doi.org/10.1145/3720472)
+- [Existentialize Your Generics](https://doi.org/10.1145/3759426.3760975)
