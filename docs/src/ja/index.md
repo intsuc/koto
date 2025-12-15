@@ -67,5 +67,5 @@ type
 
 ## ランダムな資料
 
-- [Multi-Stage Programming with Splice Variables
-](https://tsung-ju.org/icfp25/)
+- [Multi-Stage Programming with Splice Variables](https://tsung-ju.org/icfp25/)
+- [Rows and Capabilities as Modal Effects](https://arxiv.org/abs/2507.10301)
