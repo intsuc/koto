@@ -8,6 +8,10 @@ plugins {
 
 kotlin {
     jvmToolchain(25)
+    compilerOptions {
+        freeCompilerArgs.add("-Xreturn-value-checker=full")
+        freeCompilerArgs.add("-Xexplicit-backing-fields")
+    }
 }
 
 tasks.withType<Test>().configureEach {
