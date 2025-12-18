@@ -29,10 +29,10 @@ type
 
 - [ ] x86-64 Linux Vulkan
 - [ ] AArch64 Linux Vulkan
+- [ ] WebAssembly Browser WebGPU
 
 ### ティア2
 
-- [ ] WebAssembly Browser WebGPU
 - [ ] x86-64 Windows Vulkan
 - [ ] AArch64 Windows Vulkan
 
@@ -76,3 +76,4 @@ type
 - [Compiling Swift Generics](https://download.swift.org/docs/assets/generics.pdf)
 - [The Simple Essence of Monomorphization](https://doi.org/10.1145/3720472)
 - [Existentialize Your Generics](https://doi.org/10.1145/3759426.3760975)
+- [No Graphics API](https://www.sebastianaaltonen.com/blog/no-graphics-api)
