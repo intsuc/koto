@@ -27,13 +27,13 @@ type
 
 ### ティア1
 
-- [ ] x86-64 Linux Vulkan
+- [ ] x86-64 Windows Vulkan
 - [ ] AArch64 Linux Vulkan
 - [ ] WebAssembly Browser WebGPU
 
 ### ティア2
 
-- [ ] x86-64 Windows Vulkan
+- [ ] x86-64 Linux Vulkan
 - [ ] AArch64 Windows Vulkan
 
 ## ランダムなアイデア
