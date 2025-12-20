@@ -27,12 +27,12 @@ type
 
 ### ティア1
 
-- [ ] x86-64 Windows Vulkan
-- [ ] AArch64 Linux Vulkan
 - [ ] WebAssembly Browser WebGPU
+- [ ] x86-64 Windows Vulkan
 
 ### ティア2
 
+- [ ] AArch64 Linux Vulkan
 - [ ] x86-64 Linux Vulkan
 - [ ] AArch64 Windows Vulkan
 
@@ -48,8 +48,8 @@ type
   1. 編集（LSPリクエスト）時: レスポンスに必要な計算を行う。
   2. 実行前: 必要であれば実行時検査を行う。
   3. 実行時: コードを実行する。
-- 一意（uniqueness）/線形（linearity）型。
-  - あるいはより一般に、分割（fractional）型/量的（quantitative）型。
+- 一意（uniqueness） / 線形（linearity）型。
+  - あるいはより一般に、分割（fractional） / 量的（quantitative）型。
 - 順序（ordered）型。
   - 型状態（type state）への応用例あり。
 - *n*ビット整数型（符号付き/符号無し）。

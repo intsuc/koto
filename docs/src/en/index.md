@@ -27,12 +27,12 @@ type
 
 ### Tier 1
 
-- [ ] x86-64 Windows Vulkan
-- [ ] AArch64 Linux Vulkan
 - [ ] WebAssembly Browser WebGPU
+- [ ] x86-64 Windows Vulkan
 
 ### Tier 2
 
+- [ ] AArch64 Linux Vulkan
 - [ ] x86-64 Linux Vulkan
 - [ ] AArch64 Windows Vulkan
 
