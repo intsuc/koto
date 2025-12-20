@@ -103,7 +103,7 @@ fun parse(input: String): ParseResult {
         val term = parseTerm()
         skipWhitespace()
         if (peekable()) {
-            error("Expected end of input", Span(cursor, cursor))
+            val _ = error("Expected end of input", Span(cursor, cursor))
         }
         ParseResult(term, lineStarts, errors)
     }
