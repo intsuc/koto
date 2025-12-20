@@ -1,5 +1,6 @@
 package koto.lsp
 
+import koto.core.elaborate
 import koto.core.parse
 import org.eclipse.lsp4j.*
 import org.eclipse.lsp4j.services.LanguageClient
@@ -35,10 +36,12 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
 
     override fun diagnostic(params: DocumentDiagnosticParams): CompletableFuture<DocumentDiagnosticReport> {
         val text = documents[params.textDocument.uri]!!
-        val result = parse(text)
-        return completedFuture(DocumentDiagnosticReport(RelatedFullDocumentDiagnosticReport(result.errors.map { error ->
-            val range = error.span.toRange(result.lineStarts)
-            Diagnostic(range, error.message)
+        val parseResult = parse(text)
+        val elaborateResult = elaborate(parseResult)
+        val diagnostics = parseResult.diagnostics + elaborateResult.diagnostics
+        return completedFuture(DocumentDiagnosticReport(RelatedFullDocumentDiagnosticReport(diagnostics.map { diagnostic ->
+            val range = diagnostic.span.toRange(parseResult.lineStarts)
+            Diagnostic(range, diagnostic.message)
         })))
     }
 }

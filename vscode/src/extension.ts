@@ -10,6 +10,9 @@ export function activate(_context: ExtensionContext) {
     {
       command: "koto",
       args: ["lsp"],
+      options: {
+        shell: true,
+      },
     },
     {
       documentSelector: [{ scheme: "file", language: "koto" }],

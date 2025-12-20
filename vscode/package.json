@@ -23,6 +23,13 @@
         ],
         "configuration": "./language-configuration.json"
       }
+    ],
+    "grammars": [
+      {
+        "language": "koto",
+        "scopeName": "source.koto",
+        "path": "./syntaxes/koto.tmLanguage.json"
+      }
     ]
   },
   "scripts": {

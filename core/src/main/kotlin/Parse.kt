@@ -19,7 +19,7 @@ sealed interface Concrete {
 data class ParseResult(
     val term: Concrete,
     val lineStarts: List<UInt>,
-    val errors: List<Concrete.Err>,
+    val diagnostics: List<Diagnostic>,
 )
 
 class ParseState(
@@ -28,7 +28,7 @@ class ParseState(
 ) {
     val length: UInt = text.length.toUInt()
     val lineStarts: MutableList<UInt> = mutableListOf(0u)
-    val errors: MutableList<Concrete.Err> = mutableListOf()
+    val diagnostics: MutableList<Diagnostic> = mutableListOf()
 }
 
 fun ParseState.peekable(): Boolean = cursor < length
@@ -69,10 +69,9 @@ private inline fun <R> ParseState.span(block: ParseState.(start: UInt, until: Pa
     return block(cursor) { Span(start, cursor) }
 }
 
-private fun ParseState.error(message: String, span: Span): Concrete.Err {
-    val err = Concrete.Err(message, span)
-    errors.add(err)
-    return err
+private fun ParseState.diagnose(message: String, span: Span): Concrete {
+    diagnostics.add(Diagnostic(message, span))
+    return Concrete.Err(message, span)
 }
 
 private fun Char.isIdent(): Boolean = when (this) {
@@ -84,7 +83,7 @@ private fun ParseState.parseIdent(): Concrete {
     return span { start, until ->
         skipWhile { it.isIdent() }
         if (start == cursor) {
-            error("Expected identifier", until())
+            diagnose("Expected identifier", until())
         } else {
             val identText = text.substring(start.toInt(), cursor.toInt())
             Concrete.Ident(identText, until())
@@ -103,8 +102,8 @@ fun parse(input: String): ParseResult {
         val term = parseTerm()
         skipWhitespace()
         if (peekable()) {
-            val _ = error("Expected end of input", Span(cursor, cursor))
+            val _ = diagnose("Expected end of input", Span(cursor, cursor))
         }
-        ParseResult(term, lineStarts, errors)
+        ParseResult(term, lineStarts, diagnostics)
     }
 }
