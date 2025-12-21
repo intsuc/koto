@@ -26,6 +26,7 @@ class KotoLanguageServer private constructor() : LanguageClientAware, LanguageSe
                     change = TextDocumentSyncKind.Full
                 })
                 diagnosticProvider = DiagnosticRegistrationOptions(false, false)
+                setHoverProvider(true)
             }
         })
     }

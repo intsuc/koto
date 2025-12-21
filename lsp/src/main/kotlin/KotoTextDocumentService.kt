@@ -13,6 +13,10 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
     private lateinit var client: LanguageClient
     private val documents: MutableMap<String, String> = hashMapOf()
 
+    private fun getText(document: TextDocumentIdentifier): String {
+        return documents[document.uri]!!
+    }
+
     override fun connect(client: LanguageClient) {
         this.client = client
     }
@@ -35,7 +39,7 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
     }
 
     override fun diagnostic(params: DocumentDiagnosticParams): CompletableFuture<DocumentDiagnosticReport> {
-        val text = documents[params.textDocument.uri]!!
+        val text = getText(params.textDocument)
         val parseResult = parse(text)
         val elaborateResult = elaborate(parseResult)
         val diagnostics = parseResult.diagnostics + elaborateResult.diagnostics
@@ -43,5 +47,15 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
             val range = diagnostic.span.toRange(parseResult.lineStarts)
             Diagnostic(range, diagnostic.message)
         })))
+    }
+
+    override fun hover(params: HoverParams): CompletableFuture<Hover> {
+        val text = getText(params.textDocument)
+        val parseResult = parse(text)
+        val elaborateResult = elaborate(parseResult)
+        val offset = params.position.toOffset(parseResult.lineStarts)
+        val node = findNode(elaborateResult.term, offset) ?: return completedFuture(null)
+        val type = node.type.value
+        return completedFuture(Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$type\n```")))
     }
 }

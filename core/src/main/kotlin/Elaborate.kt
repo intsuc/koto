@@ -7,17 +7,26 @@ typealias Index = UInt
 typealias Level = UInt
 
 sealed interface Abstract {
+    val type: Lazy<Value>
     val span: Span
 
-    data class Type(override val span: Span) : Abstract
+    data class Type(override val span: Span) : Abstract {
+        override val type: Lazy<Value> = lazyOf(Value.Type)
+    }
 
-    data class Int64(override val span: Span) : Abstract
+    data class Int64(override val span: Span) : Abstract {
+        override val type: Lazy<Value> = lazyOf(Value.Type)
+    }
 
-    data class Int64Lit(val value: Long, override val span: Span) : Abstract
+    data class Int64Lit(val value: Long, override val span: Span) : Abstract {
+        override val type: Lazy<Value> = lazyOf(Value.Int64)
+    }
 
-    data class Var(val text: String, val index: Index, override val span: Span) : Abstract
+    data class Var(val text: String, val index: Index, override val type: Lazy<Value>, override val span: Span) : Abstract
 
-    data class Err(val message: String, override val span: Span) : Abstract
+    data class Err(val message: String, override val span: Span) : Abstract {
+        override val type: Lazy<Value> = lazyOf(Value.Err(message))
+    }
 }
 
 sealed interface Value {
@@ -47,11 +56,6 @@ private class ElaborateState {
     val diagnostics: MutableList<Diagnostic> = mutableListOf()
 }
 
-private data class SynthResult(
-    val term: Abstract,
-    val type: Value,
-)
-
 private fun ElaborateState.diagnose(message: String, span: Span): Abstract {
     diagnostics.add(Diagnostic(message, span))
     return Abstract.Err(message, span)
@@ -67,36 +71,33 @@ private fun conv(term1: Value, term2: Value): Boolean {
     }
 }
 
-private fun ElaborateState.synth(term: Concrete): SynthResult {
+private fun ElaborateState.synth(term: Concrete): Abstract {
     return when (term) {
         is Concrete.Ident -> when (term.text) {
-            "type" -> SynthResult(Abstract.Type(term.span), Value.Type)
-            "int64" -> SynthResult(Abstract.Int64(term.span), Value.Int64)
+            "type" -> Abstract.Type(term.span)
+            "int64" -> Abstract.Int64(term.span)
             else -> when (val level = entries.indexOfLast { it.name == term.text }) {
                 -1 -> when (val value = term.text.toLongOrNull()) {
-                    null -> {
-                        val message = "Unknown identifier: ${term.text}"
-                        SynthResult(diagnose(message, term.span), Value.Err(message))
-                    }
-
-                    else -> SynthResult(Abstract.Int64Lit(value, term.span), Value.Int64Lit(value))
+                    null -> diagnose("Unknown identifier: ${term.text}", term.span)
+                    else -> Abstract.Int64Lit(value, term.span)
                 }
 
                 else -> {
                     val index = (entries.lastIndex - level).toUInt()
-                    SynthResult(Abstract.Var(term.text, index, term.span), entries[level].type)
+                    val type = entries[level].type
+                    Abstract.Var(term.text, index, lazyOf(type), term.span)
                 }
             }
         }
 
-        is Concrete.Err -> SynthResult(Abstract.Err(term.message, term.span), Value.Err(term.message))
+        is Concrete.Err -> Abstract.Err(term.message, term.span)
     }
 }
 
 private fun ElaborateState.check(term: Concrete, expected: Value): Abstract {
     val synthesized = synth(term)
-    return if (conv(synthesized.type, expected)) {
-        synthesized.term
+    return if (conv(synthesized.type.value, expected)) {
+        synthesized
     } else {
         diagnose("Type mismatch", term.span)
     }
@@ -104,7 +105,7 @@ private fun ElaborateState.check(term: Concrete, expected: Value): Abstract {
 
 fun elaborate(input: ParseResult): ElaborateResult {
     return ElaborateState().run {
-        val term = synth(input.term).term
+        val term = synth(input.term)
         ElaborateResult(term, diagnostics)
     }
 }
