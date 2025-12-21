@@ -49,9 +49,10 @@ private fun ElaborateState.diagnose(message: String, span: Span): Abstract {
     return Abstract.Err(message, span)
 }
 
-private fun ElaborateState.conv(term1: Value, term2: Value): Boolean {
-    return when {
-        term1 is Value.Var && term2 is Value.Var -> term1.level == term2.level
+private fun conv(term1: Value, term2: Value): Boolean {
+    return when (term1) {
+        is Value.Type if term2 is Value.Type -> true
+        is Value.Var if term2 is Value.Var -> term1.level == term2.level
         else -> false
     }
 }
