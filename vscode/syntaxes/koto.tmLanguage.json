@@ -5,11 +5,15 @@
   "repository": {},
   "patterns": [
     {
-      "match": "\\b(?:type)\\b",
+      "match": "\\b(?:type|int64)\\b",
       "name": "constant.language.koto"
     },
     {
-      "match": "\\b(a-z0-9-)+\\b",
+      "match": "-?[0-9]+\\b",
+      "name": "constant.numeric.koto"
+    },
+    {
+      "match": "\\b[a-z0-9-]+\\b",
       "name": "variable.koto"
     }
   ]
