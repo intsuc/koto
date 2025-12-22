@@ -75,6 +75,11 @@ private fun ParseState.skipWhitespace() {
                 lineStarts.add(cursor)
             }
 
+            '#' -> {
+                skip()
+                skipWhile { it != '\n' && it != '\r' }
+            }
+
             else -> return
         }
     }

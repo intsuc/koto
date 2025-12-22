@@ -1,3 +1,4 @@
+# line comment
 fun(x : type) → type {
 	x
 }(int64)

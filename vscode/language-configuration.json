@@ -1,5 +1,11 @@
 {
   "wordPattern": "[a-z0-9-]+",
+  "comments": {
+    "lineComment": {
+      "comment": "#",
+      "noIndent": false
+    }
+  },
   "autoClosingPairs": [
     [
       "(",

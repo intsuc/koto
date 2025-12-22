@@ -5,6 +5,10 @@
   "repository": {},
   "patterns": [
     {
+      "match": "#.*$",
+      "name": "comment.line.koto"
+    },
+    {
       "match": "\\b(?:fun)\\b|[:→]",
       "name": "keyword.koto"
     },
