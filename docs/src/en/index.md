@@ -19,8 +19,11 @@
 
 ## Example
 
-```koto
-type
+```ヿ
+# line comment
+fun(x : type) → type {
+	x
+}(int64)
 ```
 
 ## Supported platforms

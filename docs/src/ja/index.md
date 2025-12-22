@@ -19,8 +19,11 @@
 
 ## 例
 
-```koto
-type
+```ヿ
+# line comment
+fun(x : type) → type {
+	x
+}(int64)
 ```
 
 ## 対応プラットフォーム
