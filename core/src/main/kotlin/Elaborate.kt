@@ -104,6 +104,7 @@ private class ElaborateState {
     val entries: MutableList<Entry> = mutableListOf()
     val types: IntervalMap<UInt, Lazy<Abstract>> = intervalMapOf()
     val diagnostics: MutableList<Diagnostic> = mutableListOf()
+    val size: Level get() = entries.size.toUInt()
 }
 
 private fun ElaborateState.diagnose(message: String, span: Span): Abstract {
@@ -288,8 +289,9 @@ private fun ElaborateState.synth(term: Concrete): Anno {
 
                 else -> {
                     val _ = synth(term.arg)
+                    val actualType = stringify(size.quote(funcType), 0u)
                     Anno(
-                        diagnose("Expected function type, found ${func.type}", term.func.span),
+                        diagnose("Expected type = function type\nActual type = $actualType", term.func.span),
                         Value.Err,
                     )
                 }
@@ -298,16 +300,18 @@ private fun ElaborateState.synth(term: Concrete): Anno {
 
         is Concrete.Err -> Anno(Abstract.Err(term.message, term.span), Value.Err)
     }.also {
-        types[it.term.span] = lazy { entries.size.toUInt().quote(it.type) }
+        types[it.term.span] = lazy { size.quote(it.type) }
     }
 }
 
 private fun ElaborateState.check(term: Concrete, expected: Value): Anno {
     val synthesized = synth(term)
-    return if (entries.size.toUInt().conv(synthesized.type, expected)) {
+    return if (size.conv(synthesized.type, expected)) {
         Anno(synthesized.term, expected)
     } else {
-        Anno(diagnose("Type mismatch", term.span), expected)
+        val expectedType = stringify(size.quote(expected), 0u)
+        val actualType = stringify(size.quote(synthesized.type), 0u)
+        Anno(diagnose("Expected type = ${expectedType}\nActual type = $actualType", term.span), expected)
     }
 }
 
