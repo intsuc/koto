@@ -91,7 +91,7 @@ sealed interface Value {
 
 data class ElaborateResult(
     val term: Abstract,
-    val types: IntervalMap<UInt, Value>,
+    val types: IntervalMap<UInt, Lazy<Abstract>>,
     val diagnostics: List<Diagnostic>,
 )
 
@@ -102,7 +102,7 @@ private data class Entry(
 
 private class ElaborateState {
     val entries: MutableList<Entry> = mutableListOf()
-    val types: IntervalMap<UInt, Value> = intervalMapOf()
+    val types: IntervalMap<UInt, Lazy<Abstract>> = intervalMapOf()
     val diagnostics: MutableList<Diagnostic> = mutableListOf()
 }
 
@@ -140,6 +140,45 @@ private fun ElaborateState.eval(term: Abstract): Value {
         }
 
         else -> Value.Err
+    }
+}
+
+// TODO
+private fun Level.quote(value: Value): Abstract {
+    return when (value) {
+        is Value.Type -> Abstract.Type(Span.ZERO)
+        is Value.Int64 -> Abstract.Int64(Span.ZERO)
+        is Value.Int64Of -> Abstract.Int64Of(value.value, Span.ZERO)
+        is Value.Fun -> Abstract.Fun(
+            "_",
+            quote(value.param),
+            quote(value.result(Value.Var(this))),
+            Span.ZERO,
+            Span.ZERO,
+        )
+
+        is Value.FunOf -> Abstract.FunOf(
+            "_",
+            quote(value.param),
+            quote(value.result),
+            quote(value.body(Value.Var(this))),
+            Span.ZERO,
+            Span.ZERO,
+        )
+
+        is Value.Call -> Abstract.Call(
+            quote(value.func),
+            quote(value.arg),
+            Span.ZERO,
+        )
+
+        is Value.Var -> Abstract.Var(
+            "$${value.level}",
+            this - value.level - 1u,
+            Span.ZERO,
+        )
+
+        is Value.Err -> Abstract.Err("_", Span.ZERO)
     }
 }
 
@@ -259,7 +298,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
 
         is Concrete.Err -> Anno(Abstract.Err(term.message, term.span), Value.Err)
     }.also {
-        types[it.term.span] = it.type
+        types[it.term.span] = lazy { entries.size.toUInt().quote(it.type) }
     }
 }
 

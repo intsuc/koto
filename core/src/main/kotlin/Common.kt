@@ -8,6 +8,10 @@ value class Span(private val value: ULong) {
 
     val start: UInt get() = (value shr 32).toUInt()
     val end: UInt get() = (value and 0xFFFFFFFFu).toUInt()
+
+    companion object {
+        val ZERO = Span(0u, 0u)
+    }
 }
 
 operator fun Span.contains(offset: UInt): Boolean = offset in start..<end
@@ -42,8 +46,8 @@ class IntervalMap<K : Comparable<K>, V : Any> {
 @Suppress("NOTHING_TO_INLINE")
 inline fun <K : Comparable<K>, V : Any> intervalMapOf(): IntervalMap<K, V> = IntervalMap()
 
-operator fun IntervalMap<UInt, Value>.set(span: Span, type: Value) {
-    set(span.start, span.end, type)
+operator fun <V : Any> IntervalMap<UInt, V>.set(span: Span, value: V) {
+    set(span.start, span.end, value)
 }
 
 data class Diagnostic(
