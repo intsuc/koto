@@ -3,9 +3,30 @@ package koto.core
 sealed interface Concrete {
     val span: Span
 
-    data class Ident(val text: String, override val span: Span) : Concrete
+    data class Ident(
+        val text: String,
+        override val span: Span,
+    ) : Concrete
 
-    data class Err(val message: String, override val span: Span) : Concrete
+    data class Fun(
+        val name: Ident,
+        val param: Concrete,
+        val result: Concrete,
+        val body: Concrete?,
+        val scope: Span,
+        override val span: Span,
+    ) : Concrete
+
+    data class Call(
+        val func: Concrete,
+        val arg: Concrete,
+        override val span: Span,
+    ) : Concrete
+
+    data class Err(
+        val message: String,
+        override val span: Span,
+    ) : Concrete
 }
 
 data class ParseResult(
@@ -23,29 +44,33 @@ class ParseState(
     val diagnostics: MutableList<Diagnostic> = mutableListOf()
 }
 
-fun ParseState.peekable(): Boolean = cursor < length
+private fun ParseState.peekable(): Boolean = cursor < length
 
-fun ParseState.peek(): Char = text[cursor.toInt()]
+private fun ParseState.peek(): Char = text[cursor.toInt()]
 
-inline fun ParseState.skipWhile(predicate: ParseState.(Char) -> Boolean) {
+private fun ParseState.skip() {
+    cursor++
+}
+
+private inline fun ParseState.skipWhile(predicate: ParseState.(Char) -> Boolean) {
     while (peekable() && predicate(peek())) {
-        cursor++
+        skip()
     }
 }
 
 private fun ParseState.skipWhitespace() {
     while (peekable()) {
         when (peek()) {
-            ' ', '\t' -> cursor++
+            ' ', '\t' -> skip()
             '\n' -> {
-                cursor++
+                skip()
                 lineStarts.add(cursor)
             }
 
             '\r' -> {
-                cursor++
+                skip()
                 if (peekable() && peek() == '\n') {
-                    cursor++
+                    skip()
                 }
                 lineStarts.add(cursor)
             }
@@ -53,12 +78,6 @@ private fun ParseState.skipWhitespace() {
             else -> return
         }
     }
-}
-
-// TODO: use cursor stack to avoid nested function allocations
-private inline fun <R> ParseState.span(block: ParseState.(start: UInt, until: ParseState.() -> Span) -> R): R {
-    val start = cursor
-    return block(cursor) { Span(start, cursor) }
 }
 
 private fun ParseState.diagnose(message: String, span: Span): Concrete {
@@ -71,27 +90,119 @@ private fun Char.isIdent(): Boolean = when (this) {
     else -> false
 }
 
-private fun ParseState.parseIdent(): Concrete {
-    return span { start, until ->
-        skipWhile { it.isIdent() }
-        if (start == cursor) {
-            diagnose("Expected identifier", until())
-        } else {
-            val identText = text.substring(start.toInt(), cursor.toInt())
-            Concrete.Ident(identText, until())
+private fun ParseState.parseIdent(): Concrete.Ident {
+    val start = cursor
+    skipWhile { it.isIdent() }
+    if (start == cursor) {
+        val _ = diagnose("Expected identifier", Span(start, cursor))
+    }
+    val identText = text.substring(start.toInt(), cursor.toInt())
+    return Concrete.Ident(identText, Span(start, cursor))
+}
+
+private fun ParseState.parseHead(minBp: UInt): Concrete {
+    val ident = parseIdent()
+    return when (ident.text) {
+        // fun( x : a ) → b
+        // fun( x : a ) → b { e }
+        "fun" -> {
+            if (!peekable() || peek() != '(') {
+                return diagnose("Expected `(` after `fun`", ident.span)
+            } else {
+                skip() // (
+            }
+            skipWhitespace()
+            val name = parseIdent()
+            skipWhitespace()
+            if (!peekable() || peek() != ':') {
+                val _ = diagnose("Expected `:` after parameter name", ident.span)
+            } else {
+                skip() // :
+            }
+            skipWhitespace()
+            val param = parseAtLeast(0u)
+            skipWhitespace()
+            if (!peekable() || peek() != ')') {
+                return diagnose("Expected `)` after parameter type", ident.span)
+            } else {
+                skip() // )
+            }
+            val scopeStart = cursor
+            skipWhitespace()
+            if (!peekable() || peek() != '→') {
+                val _ = diagnose("Expected `→` after parameter", ident.span)
+            } else {
+                skip() // →
+            }
+            skipWhitespace()
+            val result = parseAtLeast(0u)
+            var end = cursor
+            skipWhitespace()
+            val scopeEnd: UInt
+            val body = if (peekable() && peek() == '{') {
+                skip() // {
+                skipWhitespace()
+                val body = parseAtLeast(0u)
+                skipWhitespace()
+                scopeEnd = cursor
+                if (!peekable() || peek() != '}') {
+                    val _ = diagnose("Expected `}` after function body", ident.span)
+                } else {
+                    skip() // }
+                }
+                end = cursor
+                body
+            } else {
+                scopeEnd = cursor
+                null
+            }
+            Concrete.Fun(
+                name = name,
+                param = param,
+                result = result,
+                body = body,
+                scope = Span(scopeStart, scopeEnd),
+                span = Span(ident.span.start, end),
+            )
         }
+
+        else -> ident
     }
 }
 
-private fun ParseState.parseTerm(): Concrete {
-    // TODO
-    return parseIdent()
+private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete {
+    // h( e )
+    if (peekable() && peek() == '(') {
+        skip() // (
+        skipWhitespace()
+        val argument = parseAtLeast(0u)
+        skipWhitespace()
+        if (!peekable() || peek() != ')') {
+            val _ = diagnose("Expected `)` after function argument", head.span)
+        } else {
+            skip() // )
+        }
+        val end = cursor
+        val call = Concrete.Call(
+            func = head,
+            arg = argument,
+            span = Span(head.span.start, end),
+        )
+        return parseTail(minBp, call)
+    }
+
+    return head
+}
+
+private fun ParseState.parseAtLeast(minBp: UInt): Concrete {
+    val head = parseHead(minBp)
+    return parseTail(minBp, head)
 }
 
 fun parse(input: String): ParseResult {
     return ParseState(input, 0u).run {
         skipWhitespace()
-        val term = parseTerm()
+        val term = parseAtLeast(0u)
         skipWhitespace()
         if (peekable()) {
             val _ = diagnose("Expected end of input", Span(cursor, cursor))

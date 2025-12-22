@@ -1,1 +1,3 @@
-type
+fun(x : type) → type {
+	x
+}(int64)

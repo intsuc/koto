@@ -5,6 +5,10 @@
   "repository": {},
   "patterns": [
     {
+      "match": "\\b(?:fun)\\b|[:→]",
+      "name": "keyword.koto"
+    },
+    {
       "match": "\\b(?:type|int64)\\b",
       "name": "constant.language.koto"
     },
