@@ -2,6 +2,10 @@
   "$schema": "./.mdgraph/schema.json",
   "src": "src",
   "syntaxes": "../vscode/syntaxes",
+  "themes": {
+    "light": "github-light-default",
+    "dark": "github-dark-default"
+  },
   "out": "out",
   "base": "/koto/",
   "port": 3000,
