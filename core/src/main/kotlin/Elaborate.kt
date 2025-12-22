@@ -106,10 +106,6 @@ private class ElaborateState {
     val diagnostics: MutableList<Diagnostic> = mutableListOf()
 }
 
-private operator fun IntervalMap<UInt, Value>.set(span: Span, type: Value) {
-    set(span.start, span.end, type)
-}
-
 private fun ElaborateState.diagnose(message: String, span: Span): Abstract {
     diagnostics.add(Diagnostic(message, span))
     return Abstract.Err(message, span)
