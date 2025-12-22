@@ -1,8 +1,6 @@
 package koto.lsp
 
-import koto.core.Abstract
 import koto.core.Span
-import koto.core.contains
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.Range
 
@@ -23,12 +21,4 @@ fun Span.toRange(lineStarts: List<UInt>): Range {
 fun Position.toOffset(lineStarts: List<UInt>): UInt {
     val lineStart = lineStarts[line]
     return lineStart + character.toUInt()
-}
-
-fun findNode(term: Abstract, offset: UInt): Abstract? {
-    return if (offset in term.span) {
-        term
-    } else {
-        null
-    }
 }

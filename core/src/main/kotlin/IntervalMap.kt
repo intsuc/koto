@@ -29,3 +29,5 @@ class IntervalMap<K : Comparable<K>, V : Any> {
     }
 }
 
+@Suppress("NOTHING_TO_INLINE")
+inline fun <K : Comparable<K>, V : Any> intervalMapOf(): IntervalMap<K, V> = IntervalMap()

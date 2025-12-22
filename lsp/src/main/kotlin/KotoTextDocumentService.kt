@@ -54,8 +54,8 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
         val parseResult = parse(text)
         val elaborateResult = elaborate(parseResult)
         val offset = params.position.toOffset(parseResult.lineStarts)
-        val node = findNode(elaborateResult.term, offset) ?: return completedFuture(null)
-        val type = node.type.value
+        val type = elaborateResult.types[offset] ?: return completedFuture(null)
+        // TODO: quote and stringify the type
         return completedFuture(Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$type\n```")))
     }
 }
