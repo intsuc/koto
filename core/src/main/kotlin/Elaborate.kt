@@ -74,11 +74,13 @@ sealed interface Value {
     ) : Value
 
     data class Fun(
+        val text: String,
         val param: Value,
         val result: (arg: Value) -> Value,
     ) : Value
 
     data class FunOf(
+        val text: String,
         val param: Value,
         val body: (arg: Value) -> Value,
     ) : Value
@@ -89,6 +91,7 @@ sealed interface Value {
     ) : Value
 
     data class Var(
+        val text: String,
         val level: Level,
     ) : Value
 
@@ -125,14 +128,16 @@ private fun ElaborateState.eval(term: Abstract): Value {
         is Abstract.Int64Of -> Value.Int64Of(term.value)
         is Abstract.Var -> {
             val level = entries.lastIndex.toUInt() - term.index
-            Value.Var(level)
+            Value.Var(term.text, level)
         }
 
         is Abstract.Fun -> Value.Fun(
+            term.name,
             eval(term.param),
         ) { arg -> eval(term.result) }
 
         is Abstract.FunOf -> Value.FunOf(
+            term.name,
             eval(term.param),
         ) { arg -> eval(term.body) }
 
@@ -156,17 +161,17 @@ private fun Level.quote(value: Value): Abstract {
         is Value.Int64 -> Abstract.Int64(Span.ZERO)
         is Value.Int64Of -> Abstract.Int64Of(value.value, Span.ZERO)
         is Value.Fun -> Abstract.Fun(
-            "_",
+            value.text,
             quote(value.param),
-            quote(value.result(Value.Var(this))),
+            quote(value.result(Value.Var(value.text, this))),
             Span.ZERO,
             Span.ZERO,
         )
 
         is Value.FunOf -> Abstract.FunOf(
-            "_",
+            value.text,
             quote(value.param),
-            quote(value.body(Value.Var(this))),
+            quote(value.body(Value.Var(value.text, this))),
             Span.ZERO,
             Span.ZERO,
         )
@@ -178,7 +183,7 @@ private fun Level.quote(value: Value): Abstract {
         )
 
         is Value.Var -> Abstract.Var(
-            "$${value.level}",
+            value.text,
             this - value.level - 1u,
             Span.ZERO,
         )
@@ -194,12 +199,12 @@ private fun Level.conv(term1: Value, term2: Value): Boolean {
         is Value.Int64Of if term2 is Value.Int64Of -> term1.value == term2.value
         is Value.Fun if term2 is Value.Fun -> {
             conv(term1.param, term2.param) &&
-                    Value.Var(this).let { x -> (this + 1u).conv(term1.result(x), term2.result(x)) }
+                    Value.Var("$$this", this).let { x -> (this + 1u).conv(term1.result(x), term2.result(x)) }
         }
 
         is Value.FunOf if term2 is Value.FunOf -> {
             conv(term1.param, term2.param) &&
-                    Value.Var(this).let { x -> (this + 1u).conv(term1.body(x), term2.body(x)) }
+                    Value.Var("$$this", this).let { x -> (this + 1u).conv(term1.body(x), term2.body(x)) }
         }
 
         is Value.Call if term2 is Value.Call -> {
@@ -289,6 +294,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
                     term.span,
                 ),
                 Value.Fun(
+                    term.name.text,
                     eval(param.term),
                 ) { arg -> eval(result) },
             )
@@ -311,6 +317,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
                     term.span,
                 ),
                 Value.Fun(
+                    term.name.text,
                     eval(param.term),
                 ) { arg -> eval(result.term) },
             )
