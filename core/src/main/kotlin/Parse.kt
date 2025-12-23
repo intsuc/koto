@@ -19,11 +19,15 @@ sealed interface Concrete {
     data class Fun(
         val name: Ident,
         val param: Concrete,
-        val result: Concrete,
+        val result: Concrete?,
         val body: Concrete?,
         val scope: Span,
         override val span: Span,
-    ) : Concrete
+    ) : Concrete {
+        init {
+            require(!(result == null && body == null))
+        }
+    }
 
     data class Call(
         val func: Concrete,
@@ -156,6 +160,7 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
             )
         }
         // fun( x : a ) → b
+        // fun( x : a ) { e }
         // fun( x : a ) → b { e }
         "fun" -> {
             var start = cursor
@@ -185,13 +190,14 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
             val scopeStart = cursor
             start = cursor
             skipWhitespace()
-            if (!peekable() || peek() != '→') {
-                val _ = diagnose("Expected `→` after parameter", Span(start, start + 1u))
-            } else {
+            val result = if (peekable() && peek() == '→') {
                 skip() // →
+                skipWhitespace()
+                parseAtLeast(0u)
+            } else {
+                // val _ = diagnose("Expected `→` after parameter", Span(start, start + 1u))
+                null
             }
-            skipWhitespace()
-            val result = parseAtLeast(0u)
             var end = cursor
             skipWhitespace()
             val scopeEnd: UInt
@@ -209,6 +215,9 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
                 }
                 end = cursor
                 body
+            } else if (result == null) {
+                scopeEnd = cursor
+                diagnose("Expected result type", Span(start, start + 1u))
             } else {
                 scopeEnd = cursor
                 null

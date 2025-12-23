@@ -41,7 +41,6 @@ sealed interface Abstract {
     data class FunOf(
         val name: String,
         val param: Abstract,
-        val result: Abstract,
         val body: Abstract,
         val scope: Span,
         override val span: Span,
@@ -81,7 +80,6 @@ sealed interface Value {
 
     data class FunOf(
         val param: Value,
-        val result: Value,
         val body: (arg: Value) -> Value,
     ) : Value
 
@@ -136,7 +134,6 @@ private fun ElaborateState.eval(term: Abstract): Value {
 
         is Abstract.FunOf -> Value.FunOf(
             eval(term.param),
-            eval(term.result),
         ) { arg -> eval(term.body) }
 
         is Abstract.Call -> {
@@ -169,7 +166,6 @@ private fun Level.quote(value: Value): Abstract {
         is Value.FunOf -> Abstract.FunOf(
             "_",
             quote(value.param),
-            quote(value.result),
             quote(value.body(Value.Var(this))),
             Span.ZERO,
             Span.ZERO,
@@ -203,7 +199,6 @@ private fun Level.conv(term1: Value, term2: Value): Boolean {
 
         is Value.FunOf if term2 is Value.FunOf -> {
             conv(term1.param, term2.param) &&
-                    conv(term1.result, term2.result) &&
                     Value.Var(this).let { x -> (this + 1u).conv(term1.body(x), term2.body(x)) }
         }
 
@@ -260,30 +255,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
             )
         }
 
-        is Concrete.Fun if term.body != null -> {
-            val param = check(term.param, Value.Type)
-            val paramV = eval(param.term)
-            types.add(term.name.span to lazy { size.quote(paramV) })
-            entries.add(Entry(term.name.text, paramV))
-            val result = check(term.result, Value.Type)
-            val body = check(term.body, eval(result.term))
-            entries.removeAt(entries.lastIndex)
-            Anno(
-                Abstract.FunOf(
-                    term.name.text,
-                    param.term,
-                    result.term,
-                    body.term,
-                    term.scope,
-                    term.span,
-                ),
-                Value.Fun(
-                    eval(param.term),
-                ) { arg -> eval(result.term) },
-            )
-        }
-
-        is Concrete.Fun -> {
+        is Concrete.Fun if term.result != null && term.body == null -> {
             val param = check(term.param, Value.Type)
             entries.add(Entry(term.name.text, eval(param.term)))
             val result = check(term.result, Value.Type)
@@ -297,6 +269,50 @@ private fun ElaborateState.synth(term: Concrete): Anno {
                     term.span,
                 ),
                 Value.Type,
+            )
+        }
+
+        is Concrete.Fun if term.result == null && term.body != null -> {
+            val param = check(term.param, Value.Type)
+            val paramV = eval(param.term)
+            types.add(term.name.span to lazy { size.quote(paramV) })
+            entries.add(Entry(term.name.text, paramV))
+            val body = synth(term.body)
+            val result = size.quote(body.type)
+            entries.removeAt(entries.lastIndex)
+            Anno(
+                Abstract.FunOf(
+                    term.name.text,
+                    param.term,
+                    body.term,
+                    term.scope,
+                    term.span,
+                ),
+                Value.Fun(
+                    eval(param.term),
+                ) { arg -> eval(result) },
+            )
+        }
+
+        is Concrete.Fun -> {
+            val param = check(term.param, Value.Type)
+            val paramV = eval(param.term)
+            types.add(term.name.span to lazy { size.quote(paramV) })
+            entries.add(Entry(term.name.text, paramV))
+            val result = check(term.result!!, Value.Type)
+            val body = check(term.body!!, eval(result.term))
+            entries.removeAt(entries.lastIndex)
+            Anno(
+                Abstract.FunOf(
+                    term.name.text,
+                    param.term,
+                    body.term,
+                    term.scope,
+                    term.span,
+                ),
+                Value.Fun(
+                    eval(param.term),
+                ) { arg -> eval(result.term) },
             )
         }
 

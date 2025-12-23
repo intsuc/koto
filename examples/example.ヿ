@@ -1,10 +1,10 @@
 # line comment
 
 let zero = 0;
-let id = fun(x : int64) → int64 { x };
+let id-t = fun(x : int64) → int64;
+let id   = fun(x : int64) { x };
+let id2  = fun(x : int64) → int64 { x };
 
 let - = id(1);
 
-fun(x : type) → type {
-	x
-}(int64)
+type
