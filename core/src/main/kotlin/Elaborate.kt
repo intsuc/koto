@@ -22,6 +22,14 @@ sealed interface Abstract {
         override val span: Span,
     ) : Abstract
 
+    data class Let(
+        val name: String,
+        val init: Abstract,
+        val body: Abstract,
+        val scope: Span,
+        override val span: Span,
+    ) : Abstract
+
     data class Fun(
         val name: String,
         val param: Abstract,
@@ -102,7 +110,7 @@ private data class Entry(
 
 private class ElaborateState {
     val entries: MutableList<Entry> = mutableListOf()
-    val types: IntervalMap<UInt, Lazy<Abstract>> = intervalMapOf()
+    val types: MutableList<Pair<Span, Lazy<Abstract>>> = mutableListOf()
     val diagnostics: MutableList<Diagnostic> = mutableListOf()
     val size: Level get() = entries.size.toUInt()
 }
@@ -234,9 +242,29 @@ private fun ElaborateState.synth(term: Concrete): Anno {
             }
         }
 
+        is Concrete.Let -> {
+            val init = synth(term.init)
+            types.add(term.name.span to lazy { size.quote(init.type) })
+            entries.add(Entry(term.name.text, init.type))
+            val body = synth(term.body)
+            entries.removeAt(entries.lastIndex)
+            Anno(
+                Abstract.Let(
+                    term.name.text,
+                    init.term,
+                    body.term,
+                    term.scope,
+                    term.span,
+                ),
+                body.type,
+            )
+        }
+
         is Concrete.Fun if term.body != null -> {
             val param = check(term.param, Value.Type)
-            entries.add(Entry(term.name.text, eval(param.term)))
+            val paramV = eval(param.term)
+            types.add(term.name.span to lazy { size.quote(paramV) })
+            entries.add(Entry(term.name.text, paramV))
             val result = check(term.result, Value.Type)
             val body = check(term.body, eval(result.term))
             entries.removeAt(entries.lastIndex)
@@ -300,24 +328,54 @@ private fun ElaborateState.synth(term: Concrete): Anno {
 
         is Concrete.Err -> Anno(Abstract.Err(term.message, term.span), Value.Err)
     }.also {
-        types[it.term.span] = lazy { size.quote(it.type) }
+        types.add(it.term.span to lazy { size.quote(it.type) })
     }
 }
 
 private fun ElaborateState.check(term: Concrete, expected: Value): Anno {
-    val synthesized = synth(term)
-    return if (size.conv(synthesized.type, expected)) {
-        Anno(synthesized.term, expected)
-    } else {
-        val expectedType = stringify(size.quote(expected), 0u)
-        val actualType = stringify(size.quote(synthesized.type), 0u)
-        Anno(diagnose("Expected type = ${expectedType}\nActual type = $actualType", term.span), expected)
+    return when (term) {
+        is Concrete.Let -> {
+            val init = synth(term.init)
+            types.add(term.name.span to lazy { size.quote(init.type) })
+            entries.add(Entry(term.name.text, init.type))
+            val body = check(term.body, expected)
+            entries.removeAt(entries.lastIndex)
+            Anno(
+                Abstract.Let(
+                    term.name.text,
+                    init.term,
+                    body.term,
+                    term.scope,
+                    term.span,
+                ),
+                expected,
+            )
+        }
+
+        else -> {
+            val synthesized = synth(term)
+            if (size.conv(synthesized.type, expected)) {
+                Anno(synthesized.term, expected)
+            } else {
+                val expectedType = stringify(size.quote(expected), 0u)
+                val actualType = stringify(size.quote(synthesized.type), 0u)
+                Anno(diagnose("Expected type = ${expectedType}\nActual type = $actualType", term.span), expected)
+            }
+        }
+    }.also {
+        types.add(it.term.span to lazy { size.quote(it.type) })
     }
 }
 
 fun elaborate(input: ParseResult): ElaborateResult {
     return ElaborateState().run {
         val term = synth(input.term).term
+        val types = intervalMapOf<UInt, Lazy<Abstract>>().also { map ->
+            // Later spans may override earlier spans, so we insert them in reverse order.
+            for ((span, type) in types.asReversed()) {
+                map[span] = type
+            }
+        }
         ElaborateResult(term, types, diagnostics)
     }
 }

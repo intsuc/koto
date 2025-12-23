@@ -8,6 +8,14 @@ sealed interface Concrete {
         override val span: Span,
     ) : Concrete
 
+    data class Let(
+        val name: Ident,
+        val init: Concrete,
+        val body: Concrete,
+        val scope: Span,
+        override val span: Span,
+    ) : Concrete
+
     data class Fun(
         val name: Ident,
         val param: Concrete,
@@ -108,6 +116,36 @@ private fun ParseState.parseIdent(): Concrete.Ident {
 private fun ParseState.parseHead(minBp: UInt): Concrete {
     val ident = parseIdent()
     return when (ident.text) {
+        // let x = e1 ; e2
+        "let" -> {
+            skipWhitespace()
+            val name = parseIdent()
+            skipWhitespace()
+            if (!peekable() || peek() != '=') {
+                val _ = diagnose("Expected `=` after `let`", ident.span)
+            } else {
+                skip() // =
+            }
+            skipWhitespace()
+            val init = parseAtLeast(0u)
+            skipWhitespace()
+            if (!peekable() || peek() != ';') {
+                val _ = diagnose("Expected `;` after let initialization", ident.span)
+            } else {
+                skip() // ;
+            }
+            val scopeStart = cursor
+            skipWhitespace()
+            val body = parseAtLeast(0u)
+            val scopeEnd = cursor
+            Concrete.Let(
+                name = name,
+                init = init,
+                body = body,
+                scope = Span(scopeStart, scopeEnd),
+                span = Span(ident.span.start, cursor),
+            )
+        }
         // fun( x : a ) → b
         // fun( x : a ) → b { e }
         "fun" -> {
