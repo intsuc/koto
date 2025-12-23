@@ -4,6 +4,7 @@ import koto.core.elaborate
 import koto.core.parse
 import koto.core.stringify
 import org.eclipse.lsp4j.*
+import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.services.LanguageClient
 import org.eclipse.lsp4j.services.LanguageClientAware
 import org.eclipse.lsp4j.services.TextDocumentService
@@ -58,5 +59,16 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
         val type = elaborateResult.types[offset]?.value ?: return completedFuture(null)
         val typeString = stringify(type, 0u)
         return completedFuture(Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$typeString\n```")))
+    }
+
+    override fun completion(params: CompletionParams): CompletableFuture<Either<List<CompletionItem>, CompletionList>> {
+        val text = getText(params.textDocument)
+        val parseResult = parse(text)
+        val elaborateResult = elaborate(parseResult)
+        val offset = params.position.toOffset(parseResult.lineStarts)
+        val scopes = elaborateResult.scopes[offset]
+        return completedFuture(Either.forRight(CompletionList(scopes.map { scope ->
+            CompletionItem(scope)
+        })))
     }
 }

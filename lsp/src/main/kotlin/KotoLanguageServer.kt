@@ -27,6 +27,7 @@ class KotoLanguageServer private constructor() : LanguageClientAware, LanguageSe
                 })
                 diagnosticProvider = DiagnosticRegistrationOptions(false, false)
                 setHoverProvider(true)
+                completionProvider = CompletionOptions(false, emptyList())
             }
         })
     }
