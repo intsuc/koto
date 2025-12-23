@@ -1,5 +1,7 @@
 package koto.core
 
+import koto.core.util.*
+
 /** de Bruijn index */
 typealias Index = UInt
 

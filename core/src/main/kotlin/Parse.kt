@@ -1,5 +1,8 @@
 package koto.core
 
+import koto.core.util.Diagnostic
+import koto.core.util.Span
+
 sealed interface Concrete {
     val span: Span
 

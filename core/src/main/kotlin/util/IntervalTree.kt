@@ -1,48 +1,4 @@
-package koto.core
-
-import java.util.*
-
-@JvmInline
-value class Span(private val value: ULong) {
-    constructor(start: UInt, end: UInt) : this((start.toULong() shl 32) or end.toULong())
-
-    val start: UInt get() = (value shr 32).toUInt()
-    val end: UInt get() = (value and 0xFFFFFFFFu).toUInt()
-
-    companion object {
-        val ZERO = Span(0u, 0u)
-    }
-}
-
-operator fun Span.contains(offset: UInt): Boolean = offset in start..<end
-
-class IntervalMap<V> {
-    private val boundaries = TreeMap<UInt, V?>()
-
-    operator fun get(key: UInt): V? = boundaries.floorEntry(key)?.value
-
-    operator fun set(span: Span, value: V) {
-        val start = span.start
-        val end = span.end
-        val beforeBeginValue = boundaries.lowerEntry(start)?.value
-        val oldEndValue = this[end]
-
-        boundaries.subMap(start, true, end, false).clear()
-
-        if (beforeBeginValue != value) {
-            boundaries[start] = value
-        }
-
-        if (oldEndValue == value) {
-            boundaries.remove(end)
-        } else {
-            boundaries[end] = oldEndValue
-        }
-    }
-}
-
-@Suppress("NOTHING_TO_INLINE")
-inline fun <V : Any> intervalMapOf(): IntervalMap<V> = IntervalMap()
+package koto.core.util
 
 class IntervalTree<V> {
     private class Entry<V>(val span: Span, val value: V)
@@ -80,7 +36,7 @@ class IntervalTree<V> {
             start > node.center -> node.right = insert(node.right, entry)
             else -> node.overlapping.add(entry)
         }
-        
+
         return node
     }
 
@@ -100,8 +56,3 @@ class IntervalTree<V> {
 
 @Suppress("NOTHING_TO_INLINE")
 inline fun <V> intervalTreeOf(): IntervalTree<V> = IntervalTree()
-
-data class Diagnostic(
-    val message: String,
-    val span: Span,
-)
