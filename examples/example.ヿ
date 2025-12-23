@@ -1,14 +1,14 @@
 # line comment
 
-let zero = 0;
-let id-t = fun(x : int64) → int64;
-let id   = fun(x : int64) { x };
-let id2  = fun(x : int64) → int64 { x };
-let id3  = fun(a-t : type) { fun(a : a-t) { a } };
+let zero = 0
+let id-t = fun(x : int64) → int64
+let id   = fun(x : int64) { x }
+let id2  = fun(x : int64) → int64 { x }
+let id3  = fun(a-t : type) { fun(a : a-t) { a } }
 
-let - = id(1);
-let - = id2(2);
-let - = id3(int64);
-# let - = id3(int64)(3);
+let - = id(1)
+let - = id2(2)
+let - = id3(int64)
+# let - = id3(int64)(3)
 
 type

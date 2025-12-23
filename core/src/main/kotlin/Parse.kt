@@ -127,11 +127,11 @@ private fun ParseState.parseIdent(): Concrete.Ident {
 private fun ParseState.parseHead(minBp: UInt): Concrete {
     val (text, span) = parseWord()
     return when (text) {
-        // let x = e1 ; e2
+        // let x = e1 e2
         "let" -> {
             skipWhitespace()
             val name = parseIdent()
-            var start = cursor
+            val start = cursor
             skipWhitespace()
             if (!peekable() || peek() != '=') {
                 val _ = diagnose("Expected `=` after `let`", Span(start, start + 1u))
@@ -140,13 +140,6 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
             }
             skipWhitespace()
             val init = parseAtLeast(0u)
-            start = cursor
-            skipWhitespace()
-            if (!peekable() || peek() != ';') {
-                val _ = diagnose("Expected `;` after let initialization", Span(start, start + 1u))
-            } else {
-                skip() // ;
-            }
             val scopeStart = cursor
             skipWhitespace()
             val body = parseAtLeast(0u)
