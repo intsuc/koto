@@ -1,6 +1,8 @@
 package koto.core
 
-import koto.core.util.*
+import koto.core.util.Diagnostic
+import koto.core.util.IntervalTree
+import koto.core.util.Span
 
 /** de Bruijn index */
 typealias Index = UInt
@@ -102,7 +104,7 @@ sealed interface Value {
 
 data class ElaborateResult(
     val term: Abstract,
-    val types: IntervalMap<Lazy<Abstract>>,
+    val types: IntervalTree<Lazy<Abstract>>,
     val scopes: IntervalTree<String>,
     val diagnostics: List<Diagnostic>,
 )
@@ -115,7 +117,7 @@ private data class Entry(
 private class ElaborateState {
     val entries: MutableList<Entry> = mutableListOf()
     val types: MutableList<Pair<Span, Lazy<Abstract>>> = mutableListOf()
-    val scopes: IntervalTree<String> = intervalTreeOf()
+    val scopes: MutableList<Pair<Span, String>> = mutableListOf()
     val diagnostics: MutableList<Diagnostic> = mutableListOf()
     val size: Level get() = entries.size.toUInt()
 }
@@ -249,7 +251,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
         is Concrete.Let -> {
             val init = synth(term.init)
             types.add(term.name.span to lazy { size.quote(init.type) })
-            scopes[term.scope] = term.name.text
+            scopes.add(term.scope to term.name.text)
             entries.add(Entry(term.name.text, init.type))
             val body = synth(term.body)
             entries.removeAt(entries.lastIndex)
@@ -267,7 +269,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
 
         is Concrete.Fun if term.result != null && term.body == null -> {
             val param = check(term.param, Value.Type)
-            scopes[term.scope] = term.name.text
+            scopes.add(term.scope to term.name.text)
             entries.add(Entry(term.name.text, eval(param.term)))
             val result = check(term.result, Value.Type)
             entries.removeAt(entries.lastIndex)
@@ -287,7 +289,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
             val param = check(term.param, Value.Type)
             val paramV = eval(param.term)
             types.add(term.name.span to lazy { size.quote(paramV) })
-            scopes[term.scope] = term.name.text
+            scopes.add(term.scope to term.name.text)
             entries.add(Entry(term.name.text, paramV))
             val body = synth(term.body)
             val result = size.quote(body.type)
@@ -311,7 +313,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
             val param = check(term.param, Value.Type)
             val paramV = eval(param.term)
             types.add(term.name.span to lazy { size.quote(paramV) })
-            scopes[term.scope] = term.name.text
+            scopes.add(term.scope to term.name.text)
             entries.add(Entry(term.name.text, paramV))
             val result = check(term.result!!, Value.Type)
             val body = check(term.body!!, eval(result.term))
@@ -368,7 +370,7 @@ private fun ElaborateState.check(term: Concrete, expected: Value): Anno {
         is Concrete.Let -> {
             val init = synth(term.init)
             types.add(term.name.span to lazy { size.quote(init.type) })
-            scopes[term.scope] = term.name.text
+            scopes.add(term.scope to term.name.text)
             entries.add(Entry(term.name.text, init.type))
             val body = check(term.body, expected)
             entries.removeAt(entries.lastIndex)
@@ -402,12 +404,8 @@ private fun ElaborateState.check(term: Concrete, expected: Value): Anno {
 fun elaborate(input: ParseResult): ElaborateResult {
     return ElaborateState().run {
         val term = synth(input.term).term
-        val types = intervalMapOf<Lazy<Abstract>>().also { map ->
-            // Later spans may override earlier spans, so we insert them in reverse order.
-            for ((span, type) in types.asReversed()) {
-                map[span] = type
-            }
-        }
+        val types = IntervalTree.of(types)
+        val scopes = IntervalTree.of(scopes)
         ElaborateResult(term, types, scopes, diagnostics)
     }
 }

@@ -1,58 +1,102 @@
 package koto.core.util
 
-class IntervalTree<V> {
-    private class Entry<V>(val span: Span, val value: V)
+class IntervalTree<V> private constructor(
+    private val root: Node<V>,
+) {
+    private typealias Entry<V> = Pair<Span, V>
 
-    private class Node<V>(val center: UInt) {
-        val overlapping: MutableList<Entry<V>> = mutableListOf()
-        var left: Node<V>? = null
-        var right: Node<V>? = null
+    private class Node<V>(
+        val span: Span,
+    ) {
+        val values: MutableList<V> = mutableListOf()
+        val children: MutableList<Node<V>> = mutableListOf()
     }
 
-    private var root: Node<V>? = null
+    fun getAll(offset: UInt): List<V> {
+        val out = ArrayList<V>()
+        var node = root
 
-    operator fun set(span: Span, value: V) {
-        root = insert(root, Entry(span, value))
-    }
-
-    operator fun get(offset: UInt): List<V> {
-        val out = mutableListOf<V>()
-        query(root, offset, out)
+        while (true) {
+            out.addAll(node.values)
+            val child = findChildContaining(node.children, offset) ?: break
+            node = child
+        }
         return out
     }
 
-    private fun insert(node: Node<V>?, entry: Entry<V>): Node<V> {
-        val start = entry.span.start
-        val end = entry.span.end
+    fun getLeaf(offset: UInt): V? {
+        var node = root
+        var best: Node<V>? = null
 
-        if (node == null) {
-            fun mid(a: UInt, b: UInt): UInt = a + (b - a) / 2u
-            val center = mid(start, end)
-            return Node<V>(center).also { it.overlapping.add(entry) }
+        while (true) {
+            val child = findChildContaining(node.children, offset) ?: break
+            node = child
+            best = node
         }
 
-        when {
-            end < node.center -> node.left = insert(node.left, entry)
-            start > node.center -> node.right = insert(node.right, entry)
-            else -> node.overlapping.add(entry)
-        }
-
-        return node
+        return best?.values?.firstOrNull()
     }
 
-    private tailrec fun query(node: Node<V>?, offset: UInt, out: MutableList<V>) {
-        if (node == null) return
+    private fun findChildContaining(children: List<Node<V>>, offset: UInt): Node<V>? {
+        if (children.isEmpty()) return null
 
-        for (e in node.overlapping) {
-            if (offset in e.span) out.add(e.value)
+        // Find the rightmost child with start <= offset.
+        var l = 0
+        var r = children.size
+        while (l < r) {
+            val m = (l + r) ushr 1
+            if (children[m].span.start <= offset) l = m + 1 else r = m
         }
+        val i = l - 1
+        if (i < 0) return null
+        val c = children[i]
+        return if (offset < c.span.endExclusive) c else null
+    }
 
-        when {
-            offset < node.center -> query(node.left, offset, out)
-            offset > node.center -> query(node.right, offset, out)
+    companion object {
+        fun <V> of(entries: List<Entry<V>>): IntervalTree<V> {
+            // Sort by start asc, end desc so outer intervals come before inner ones at same start.
+            val sorted = entries.sortedWith(
+                compareBy<Entry<V>> { (span, _) -> span.start }
+                    .thenByDescending { (span, _) -> span.endExclusive }
+            )
+
+            val root = Node<V>(Span.ALL)
+            val stack = ArrayDeque<Node<V>>()
+            stack.addLast(root)
+
+            for ((span, value) in sorted) {
+                val s = span.start
+                val t = span.endExclusive
+
+                // Move up until we find a parent that can contain or be before this interval.
+                while (stack.isNotEmpty() && s >= stack.last().span.endExclusive) {
+                    stack.removeLast()
+                }
+                val parent = requireNotNull(stack.lastOrNull()) { "No parent found (this should not happen)." }
+
+                require(parent.span.endExclusive !in (s + 1u)..<t) {
+                    "Crossing intervals detected: child [$s, $t) crosses parent [${parent.span.start}, ${parent.span.endExclusive})"
+                }
+                require(t <= parent.span.endExclusive) {
+                    "Interval [$s, $t) is not contained in parent [${parent.span.start}, ${parent.span.endExclusive})"
+                }
+
+                // Deduplicate identical boundaries by storing multiple values in the same node.
+                val lastChild = parent.children.lastOrNull()
+                if (lastChild != null && lastChild.span.start == s && lastChild.span.endExclusive == t) {
+                    lastChild.values.add(value)
+                    // Do NOT push duplicate interval node again.
+                    continue
+                }
+
+                val node = Node<V>(Span(s, t))
+                node.values.add(value)
+                parent.children.add(node)
+                stack.addLast(node)
+            }
+
+            return IntervalTree(root)
         }
     }
 }
-
-@Suppress("NOTHING_TO_INLINE")
-inline fun <V> intervalTreeOf(): IntervalTree<V> = IntervalTree()

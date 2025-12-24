@@ -1,6 +1,6 @@
 package koto.lsp
 
-import koto.core.Span
+import koto.core.util.Span
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.Range
 
@@ -14,7 +14,7 @@ fun Span.toRange(lineStarts: List<UInt>): Range {
     }
 
     val startPosition = offsetToPosition(start)
-    val endPosition = offsetToPosition(end)
+    val endPosition = offsetToPosition(endExclusive)
     return Range(startPosition, endPosition)
 }
 

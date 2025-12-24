@@ -56,7 +56,7 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
         val parseResult = parse(text)
         val elaborateResult = elaborate(parseResult)
         val offset = params.position.toOffset(parseResult.lineStarts)
-        val type = elaborateResult.types[offset]?.value ?: return completedFuture(null)
+        val type = elaborateResult.types.getLeaf(offset)?.value ?: return completedFuture(null)
         val typeString = stringify(type, 0u)
         return completedFuture(Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$typeString\n```")))
     }
@@ -66,7 +66,7 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
         val parseResult = parse(text)
         val elaborateResult = elaborate(parseResult)
         val offset = params.position.toOffset(parseResult.lineStarts)
-        val scopes = elaborateResult.scopes[offset]
+        val scopes = elaborateResult.scopes.getAll(offset)
         return completedFuture(Either.forRight(CompletionList(scopes.map { scope ->
             CompletionItem(scope)
         })))

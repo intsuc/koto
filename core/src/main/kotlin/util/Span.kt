@@ -4,12 +4,17 @@ package koto.core.util
 value class Span(private val value: ULong) {
     constructor(start: UInt, end: UInt) : this((start.toULong() shl 32) or end.toULong())
 
-    val start: UInt get() = (value shr 32).toUInt()
-    val end: UInt get() = (value and 0xFFFFFFFFu).toUInt()
+    init {
+        require(start <= endExclusive) { "Invalid Span: start ($start) > endExclusive ($endExclusive)" }
+    }
 
-    operator fun contains(offset: UInt): Boolean = offset in start..<end
+    val start: UInt get() = (value shr 32).toUInt()
+    val endExclusive: UInt get() = (value and 0xFFFFFFFFu).toUInt()
+
+    operator fun contains(offset: UInt): Boolean = offset in start..<endExclusive
 
     companion object {
-        val ZERO = Span(0u, 0u)
+        val ZERO: Span = Span(0u, 0u)
+        val ALL: Span = Span(UInt.MIN_VALUE, UInt.MAX_VALUE)
     }
 }
