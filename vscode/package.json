@@ -30,6 +30,13 @@
         "scopeName": "source.koto",
         "path": "./syntaxes/koto.tmLanguage.json"
       }
+    ],
+    "commands": [
+      {
+        "category": "ヿ",
+        "title": "Cancel Composition",
+        "command": "koto.cancelComposition"
+      }
     ]
   },
   "scripts": {
