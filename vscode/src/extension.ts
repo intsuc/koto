@@ -9,32 +9,51 @@ function arrowEdit(): Disposable {
   return workspace.onDidChangeTextDocument(async (event) => {
     if (applying) return;
     if (event.document.languageId !== "koto") return;
-    if (event.contentChanges.length !== 1) return;
 
-    const change = event.contentChanges[0]!;
-    if (change.text !== ">") return;
-    if (change.rangeLength !== 0) return;
-
-    const endOffset = change.rangeOffset + change.text.length;
-    const startOffset = endOffset - "->".length;
-    if (startOffset < 0) return;
-
-    const range = new Range(
-      event.document.positionAt(startOffset),
-      event.document.positionAt(endOffset),
+    const changes = [...event.contentChanges].sort(
+      (a, b) => a.rangeOffset - b.rangeOffset,
     );
-    const text = event.document.getText(range);
-    if (text !== "->") return;
 
-    applying = true;
-    try {
-      const edit = new WorkspaceEdit();
+    let cumulativeDelta = 0;
+    const replacements: { startOffset: number, range: Range }[] = [];
+
+    for (const change of changes) {
+      const delta = change.text.length - change.rangeLength;
+
+      if (change.text === ">" && change.rangeLength === 0) {
+        const endOffset = change.rangeOffset + cumulativeDelta + change.text.length;
+        const startOffset = endOffset - "->".length;
+
+        if (startOffset >= 0) {
+          const range = new Range(
+            event.document.positionAt(startOffset),
+            event.document.positionAt(endOffset),
+          );
+          const text = event.document.getText(range);
+          if (text === "->") {
+            replacements.push({ startOffset, range });
+          }
+        }
+      }
+
+      cumulativeDelta += delta;
+    }
+
+    if (replacements.length === 0) return;
+
+    replacements.sort((a, b) => b.startOffset - a.startOffset);
+
+    const edit = new WorkspaceEdit();
+    for (const { range } of replacements) {
       edit.replace(event.document.uri, range, "→");
+    }
+    try {
+      applying = true;
       await workspace.applyEdit(edit);
     } finally {
       applying = false;
     }
-  })
+  });
 }
 
 export function activate(context: ExtensionContext) {
