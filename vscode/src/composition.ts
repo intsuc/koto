@@ -1,4 +1,4 @@
-import { window, Range, workspace, WorkspaceEdit, commands } from "vscode";
+import { Range, WorkspaceEdit, commands, window, workspace } from "vscode";
 import type {
   Disposable,
   TextDocument,
@@ -51,6 +51,10 @@ type PendingCompositions = {
 };
 const pendingCompositionsByDocument = new Map<string, PendingCompositions>();
 let changeSeq = 0;
+
+function documentKey(document: TextDocument): string {
+  return document.uri.toString();
+}
 
 function mapOffsetThroughChanges(
   oldOffset: number,
@@ -119,6 +123,22 @@ function renderPendingCompositionDecoration(documentUriKey: string) {
   }
 }
 
+function clearPendingComposition(documentUriKey: string) {
+  if (!pendingCompositionsByDocument.delete(documentUriKey)) return;
+  renderPendingCompositionDecoration(documentUriKey);
+}
+
+function setPendingComposition(
+  documentUriKey: string,
+  candidates: PendingCompositionCandidate[],
+) {
+  pendingCompositionsByDocument.set(documentUriKey, {
+    seq: changeSeq,
+    candidates,
+  });
+  renderPendingCompositionDecoration(documentUriKey);
+}
+
 function clearAllPendingCompositionDecorations() {
   pendingCompositionsByDocument.clear();
   for (const editor of window.visibleTextEditors) {
@@ -140,6 +160,12 @@ function getPureSingleCharInsertion(
   return ch;
 }
 
+function insertionOffsetsOldDocument(
+  changes: readonly TextDocumentContentChangeEvent[],
+): Set<number> {
+  return new Set<number>(changes.map((c) => c.rangeOffset));
+}
+
 function getInsertionOffsetsInFinalDocument(
   changes: readonly TextDocumentContentChangeEvent[],
 ): number[] {
@@ -159,6 +185,82 @@ function getInsertionOffsetsInFinalDocument(
   return offsets;
 }
 
+function startCandidates(
+  insertedChar: string,
+  insertionOffsets: number[],
+): PendingCompositionCandidate[] | null {
+  const firstNode = compositionTrie.children.get(insertedChar);
+  if (!firstNode) return null;
+
+  return insertionOffsets.map((startOffset) => ({
+    startOffset,
+    node: firstNode,
+    length: 1,
+  }));
+}
+
+function extendCandidates(
+  previous: PendingCompositions,
+  insertedChar: string,
+  changes: readonly TextDocumentContentChangeEvent[],
+): PendingCompositionCandidate[] {
+  const offsetsOldDoc = insertionOffsetsOldDocument(changes);
+  const extended: PendingCompositionCandidate[] = [];
+
+  for (const candidate of previous.candidates) {
+    // Only continue if the user typed at the end of this candidate span.
+    const expectedInsertOffsetOldDoc = candidate.startOffset + candidate.length;
+    if (!offsetsOldDoc.has(expectedInsertOffsetOldDoc)) continue;
+
+    const mappedStart = mapOffsetThroughChanges(candidate.startOffset, changes);
+    if (mappedStart === null) continue;
+
+    const nextNode = candidate.node.children.get(insertedChar);
+    if (!nextNode) continue;
+
+    extended.push({
+      startOffset: mappedStart,
+      node: nextNode,
+      length: candidate.length + 1,
+    });
+  }
+
+  return extended;
+}
+
+function findReplacements(
+  document: TextDocument,
+  candidates: PendingCompositionCandidate[],
+) {
+  const replacements: Array<{
+    startOffset: number;
+    range: Range;
+    value: string;
+  }> = [];
+  const maxOffset = documentLength(document);
+
+  for (const candidate of candidates) {
+    const value = candidate.node.value;
+    if (!value) continue;
+
+    const startOffset = candidate.startOffset;
+    const endOffset = startOffset + candidate.length;
+    if (startOffset < 0 || endOffset < 0) continue;
+    if (endOffset > maxOffset) continue;
+
+    const range = new Range(
+      document.positionAt(startOffset),
+      document.positionAt(endOffset),
+    );
+    const keyText = document.getText(range);
+    if (compositionMap.get(keyText) !== value) continue;
+
+    replacements.push({ startOffset, range, value });
+  }
+
+  return replacements;
+}
+
 function compositionHandler(): Disposable {
   let applying = false;
   return workspace.onDidChangeTextDocument(async (event) => {
@@ -171,115 +273,39 @@ function compositionHandler(): Disposable {
       (a, b) => a.rangeOffset - b.rangeOffset,
     );
 
-    const documentUriKey = event.document.uri.toString();
-
+    const documentUriKey = documentKey(event.document);
     const insertedChar = getPureSingleCharInsertion(changes);
     if (!insertedChar) {
-      // Any other text edit invalidates pending compositions.
-      if (pendingCompositionsByDocument.has(documentUriKey)) {
-        pendingCompositionsByDocument.delete(documentUriKey);
-        renderPendingCompositionDecoration(documentUriKey);
-      }
+      clearPendingComposition(documentUriKey);
       return;
     }
 
-    const previousPending = pendingCompositionsByDocument.get(documentUriKey);
+    const previous = pendingCompositionsByDocument.get(documentUriKey);
+    const canContinue = previous?.seq === changeSeq - 1;
+    const insertionOffsetsFinal = getInsertionOffsetsInFinalDocument(changes);
 
-    // We only allow progressing an in-flight composition if it was started on the
-    // immediately previous change event for this document.
-    const canContinue = previousPending?.seq === changeSeq - 1;
+    const extended =
+      canContinue && previous
+        ? extendCandidates(previous, insertedChar, changes)
+        : [];
 
-    const insertionOffsets = getInsertionOffsetsInFinalDocument(changes);
+    const candidates =
+      extended.length > 0
+        ? extended
+        : startCandidates(insertedChar, insertionOffsetsFinal);
 
-    let nextCandidates: PendingCompositionCandidate[] = [];
-
-    if (canContinue && previousPending) {
-      // Extend existing candidates with the newly inserted character, but only
-      // when the character was inserted exactly at the end of the candidate span.
-      // This prevents continuing a composition if the user typed elsewhere.
-      const insertionOffsetsOldDoc = new Set<number>(
-        changes.map((c) => c.rangeOffset),
-      );
-
-      const extended: PendingCompositionCandidate[] = [];
-      for (const candidate of previousPending.candidates) {
-        const expectedInsertOffsetOldDoc =
-          candidate.startOffset + candidate.length;
-        if (!insertionOffsetsOldDoc.has(expectedInsertOffsetOldDoc)) continue;
-
-        const mappedStart = mapOffsetThroughChanges(
-          candidate.startOffset,
-          changes,
-        );
-        if (mappedStart === null) continue;
-
-        const nextNode = candidate.node.children.get(insertedChar);
-        if (!nextNode) continue;
-
-        extended.push({
-          startOffset: mappedStart,
-          node: nextNode,
-          length: candidate.length + 1,
-        });
-      }
-
-      nextCandidates = extended;
-    }
-
-    if (nextCandidates.length === 0) {
-      // Either there was no pending composition, it wasn't immediate, or the
-      // character didn't extend any existing candidates. Start fresh.
-      const firstNode = compositionTrie.children.get(insertedChar);
-      if (!firstNode) {
-        if (previousPending) {
-          pendingCompositionsByDocument.delete(documentUriKey);
-          renderPendingCompositionDecoration(documentUriKey);
-        }
-        return;
-      }
-
-      nextCandidates = insertionOffsets.map((startOffset) => ({
-        startOffset,
-        node: firstNode,
-        length: 1,
-      }));
-    }
-
-    // Check which candidates form a complete composition key.
-    const replacements: { startOffset: number; range: Range; value: string }[] =
-      [];
-    for (const candidate of nextCandidates) {
-      if (!candidate.node.value) continue;
-
-      const startOffset = candidate.startOffset;
-      const endOffset = startOffset + candidate.length;
-      if (startOffset < 0 || endOffset < 0) continue;
-      if (endOffset > documentLength(event.document)) continue;
-
-      const range = new Range(
-        event.document.positionAt(startOffset),
-        event.document.positionAt(endOffset),
-      );
-      const keyText = event.document.getText(range);
-      const value = compositionMap.get(keyText);
-      if (!value) continue;
-
-      replacements.push({ startOffset, range, value });
-    }
-
-    if (replacements.length > 0) {
-      // A composition applied; clear any pending underline/composition tracking.
-      pendingCompositionsByDocument.delete(documentUriKey);
-      renderPendingCompositionDecoration(documentUriKey);
-    } else {
-      // Keep tracking for exactly one event; any other edit cancels.
-      pendingCompositionsByDocument.set(documentUriKey, {
-        seq: changeSeq,
-        candidates: nextCandidates,
-      });
-      renderPendingCompositionDecoration(documentUriKey);
+    if (!candidates || candidates.length === 0) {
+      clearPendingComposition(documentUriKey);
       return;
     }
+
+    const replacements = findReplacements(event.document, candidates);
+    if (replacements.length === 0) {
+      setPendingComposition(documentUriKey, candidates);
+      return;
+    }
+
+    clearPendingComposition(documentUriKey);
 
     replacements.sort((a, b) => b.startOffset - a.startOffset);
 
