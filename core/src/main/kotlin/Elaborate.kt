@@ -17,6 +17,15 @@ sealed interface Abstract {
         override val span: Span,
     ) : Abstract
 
+    data class Bool(
+        override val span: Span,
+    ) : Abstract
+
+    data class BoolOf(
+        val value: Boolean,
+        override val span: Span,
+    ) : Abstract
+
     data class Int64(
         override val span: Span,
     ) : Abstract
@@ -69,6 +78,12 @@ sealed interface Abstract {
 
 sealed interface Value {
     data object Type : Value
+
+    data object Bool : Value
+
+    data class BoolOf(
+        val value: Boolean,
+    ) : Value
 
     data object Int64 : Value
 
@@ -130,6 +145,8 @@ private fun ElaborateState.diagnose(message: String, span: Span): Abstract {
 private fun ElaborateState.eval(term: Abstract): Value {
     return when (term) {
         is Abstract.Type -> Value.Type
+        is Abstract.Bool -> Value.Bool
+        is Abstract.BoolOf -> Value.BoolOf(term.value)
         is Abstract.Int64 -> Value.Int64
         is Abstract.Int64Of -> Value.Int64Of(term.value)
         is Abstract.Var -> {
@@ -163,6 +180,8 @@ private fun ElaborateState.eval(term: Abstract): Value {
 private fun Level.quote(value: Value): Abstract {
     return when (value) {
         is Value.Type -> Abstract.Type(Span.ZERO)
+        is Value.Bool -> Abstract.Bool(Span.ZERO)
+        is Value.BoolOf -> Abstract.BoolOf(value.value, Span.ZERO)
         is Value.Int64 -> Abstract.Int64(Span.ZERO)
         is Value.Int64Of -> Abstract.Int64Of(value.value, Span.ZERO)
         is Value.Fun -> Abstract.Fun(
@@ -199,6 +218,8 @@ private fun Level.quote(value: Value): Abstract {
 private fun Level.conv(term1: Value, term2: Value): Boolean {
     return when (term1) {
         is Value.Type if term2 is Value.Type -> true
+        is Value.Bool if term2 is Value.Bool -> true
+        is Value.BoolOf if term2 is Value.BoolOf -> term1.value == term2.value
         is Value.Int64 if term2 is Value.Int64 -> true
         is Value.Int64Of if term2 is Value.Int64Of -> term1.value == term2.value
         is Value.Fun if term2 is Value.Fun -> {
@@ -230,6 +251,9 @@ private fun ElaborateState.synth(term: Concrete): Anno {
     return when (term) {
         is Concrete.Ident -> when (term.text) {
             "type" -> Anno(Abstract.Type(term.span), Value.Type)
+            "bool" -> Anno(Abstract.Bool(term.span), Value.Type)
+            "false" -> Anno(Abstract.BoolOf(false, term.span), Value.Bool)
+            "true" -> Anno(Abstract.BoolOf(true, term.span), Value.Bool)
             "int64" -> Anno(Abstract.Int64(term.span), Value.Type)
             else -> when (val level = entries.indexOfLast { it.name == term.text }) {
                 -1 -> when (val value = term.text.toLongOrNull()) {

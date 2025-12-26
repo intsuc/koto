@@ -13,7 +13,7 @@
       "name": "keyword.koto"
     },
     {
-      "match": "\\b(?:type|int64)\\b",
+      "match": "\\b(?:type|bool|false|true|int64)\\b",
       "name": "constant.language.koto"
     },
     {
