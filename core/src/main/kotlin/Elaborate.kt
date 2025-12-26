@@ -11,68 +11,49 @@ typealias Index = UInt
 typealias Level = UInt
 
 sealed interface Abstract {
-    val span: Span
+    data object Type : Abstract
 
-    data class Type(
-        override val span: Span,
-    ) : Abstract
-
-    data class Bool(
-        override val span: Span,
-    ) : Abstract
+    data object Bool : Abstract
 
     data class BoolOf(
         val value: Boolean,
-        override val span: Span,
     ) : Abstract
 
-    data class Int64(
-        override val span: Span,
-    ) : Abstract
+    data object Int64 : Abstract
 
     data class Int64Of(
         val value: Long,
-        override val span: Span,
     ) : Abstract
 
     data class Let(
         val name: String,
         val init: Abstract,
         val body: Abstract,
-        val scope: Span,
-        override val span: Span,
     ) : Abstract
 
     data class Fun(
         val name: String,
         val param: Abstract,
         val result: Abstract,
-        val scope: Span,
-        override val span: Span,
     ) : Abstract
 
     data class FunOf(
         val name: String,
         val body: Abstract,
-        val scope: Span,
-        override val span: Span,
     ) : Abstract
 
     data class Call(
         val func: Abstract,
         val arg: Abstract,
-        override val span: Span,
     ) : Abstract
 
     data class Var(
         val text: String,
         val index: Index,
-        override val span: Span,
     ) : Abstract
 
     data class Err(
         val message: String,
-        override val span: Span,
     ) : Abstract
 }
 
@@ -139,7 +120,7 @@ private class ElaborateState {
 
 private fun ElaborateState.diagnose(message: String, span: Span): Abstract {
     diagnostics.add(Diagnostic(message, span))
-    return Abstract.Err(message, span)
+    return Abstract.Err(message)
 }
 
 private fun ElaborateState.eval(term: Abstract): Value {
@@ -179,39 +160,33 @@ private fun ElaborateState.eval(term: Abstract): Value {
 // TODO
 private fun Level.quote(value: Value): Abstract {
     return when (value) {
-        is Value.Type -> Abstract.Type(Span.ZERO)
-        is Value.Bool -> Abstract.Bool(Span.ZERO)
-        is Value.BoolOf -> Abstract.BoolOf(value.value, Span.ZERO)
-        is Value.Int64 -> Abstract.Int64(Span.ZERO)
-        is Value.Int64Of -> Abstract.Int64Of(value.value, Span.ZERO)
+        is Value.Type -> Abstract.Type
+        is Value.Bool -> Abstract.Bool
+        is Value.BoolOf -> Abstract.BoolOf(value.value)
+        is Value.Int64 -> Abstract.Int64
+        is Value.Int64Of -> Abstract.Int64Of(value.value)
         is Value.Fun -> Abstract.Fun(
             value.text,
             quote(value.param),
             quote(value.result(Value.Var(value.text, this))),
-            Span.ZERO,
-            Span.ZERO,
         )
 
         is Value.FunOf -> Abstract.FunOf(
             value.text,
             quote(value.body(Value.Var(value.text, this))),
-            Span.ZERO,
-            Span.ZERO,
         )
 
         is Value.Call -> Abstract.Call(
             quote(value.func),
             quote(value.arg),
-            Span.ZERO,
         )
 
         is Value.Var -> Abstract.Var(
             value.text,
             this - value.level - 1u,
-            Span.ZERO,
         )
 
-        is Value.Err -> Abstract.Err("_", Span.ZERO)
+        is Value.Err -> Abstract.Err("_")
     }
 }
 
@@ -250,21 +225,21 @@ private data class Anno(
 private fun ElaborateState.synth(term: Concrete): Anno {
     return when (term) {
         is Concrete.Ident -> when (term.text) {
-            "type" -> Anno(Abstract.Type(term.span), Value.Type)
-            "bool" -> Anno(Abstract.Bool(term.span), Value.Type)
-            "false" -> Anno(Abstract.BoolOf(false, term.span), Value.Bool)
-            "true" -> Anno(Abstract.BoolOf(true, term.span), Value.Bool)
-            "int64" -> Anno(Abstract.Int64(term.span), Value.Type)
+            "type" -> Anno(Abstract.Type, Value.Type)
+            "bool" -> Anno(Abstract.Bool, Value.Type)
+            "false" -> Anno(Abstract.BoolOf(false), Value.Bool)
+            "true" -> Anno(Abstract.BoolOf(true), Value.Bool)
+            "int64" -> Anno(Abstract.Int64, Value.Type)
             else -> when (val level = entries.indexOfLast { it.name == term.text }) {
                 -1 -> when (val value = term.text.toLongOrNull()) {
                     null -> Anno(diagnose("Unknown identifier: ${term.text}", term.span), Value.Err)
-                    else -> Anno(Abstract.Int64Of(value, term.span), Value.Int64)
+                    else -> Anno(Abstract.Int64Of(value), Value.Int64)
                 }
 
                 else -> {
                     val index = (entries.lastIndex - level).toUInt()
                     val type = entries[level].type
-                    Anno(Abstract.Var(term.text, index, term.span), type)
+                    Anno(Abstract.Var(term.text, index), type)
                 }
             }
         }
@@ -285,8 +260,6 @@ private fun ElaborateState.synth(term: Concrete): Anno {
                     term.name.text,
                     init.term,
                     body.term,
-                    term.scope,
-                    term.span,
                 ),
                 body.type,
             )
@@ -304,8 +277,6 @@ private fun ElaborateState.synth(term: Concrete): Anno {
                     term.name.text,
                     param.term,
                     result.term,
-                    term.scope,
-                    term.span,
                 ),
                 Value.Type,
             )
@@ -325,8 +296,6 @@ private fun ElaborateState.synth(term: Concrete): Anno {
                 Abstract.FunOf(
                     term.name.text,
                     body.term,
-                    term.scope,
-                    term.span,
                 ),
                 Value.Fun(
                     term.name.text,
@@ -349,8 +318,6 @@ private fun ElaborateState.synth(term: Concrete): Anno {
                 Abstract.FunOf(
                     term.name.text,
                     body.term,
-                    term.scope,
-                    term.span,
                 ),
                 Value.Fun(
                     term.name.text,
@@ -376,7 +343,6 @@ private fun ElaborateState.synth(term: Concrete): Anno {
                         Abstract.Call(
                             func.term,
                             arg.term,
-                            term.span,
                         ),
                         funcType.result(argV),
                     )
@@ -393,9 +359,9 @@ private fun ElaborateState.synth(term: Concrete): Anno {
             }
         }
 
-        is Concrete.Err -> Anno(Abstract.Err(term.message, term.span), Value.Err)
+        is Concrete.Err -> Anno(Abstract.Err(term.message), Value.Err)
     }.also {
-        actualTypes.add(it.term.span to lazy { size.quote(it.type) })
+        actualTypes.add(term.span to lazy { size.quote(it.type) })
     }
 }
 
@@ -417,8 +383,6 @@ private fun ElaborateState.check(term: Concrete, expected: Value): Anno {
                     term.name.text,
                     init.term,
                     body.term,
-                    term.scope,
-                    term.span,
                 ),
                 expected,
             )
@@ -434,8 +398,6 @@ private fun ElaborateState.check(term: Concrete, expected: Value): Anno {
                 Abstract.FunOf(
                     term.name.text,
                     body.term,
-                    term.scope,
-                    term.span,
                 ),
                 expected,
             )
@@ -452,7 +414,7 @@ private fun ElaborateState.check(term: Concrete, expected: Value): Anno {
             }
         }
     }.also {
-        expectedTypes.add(it.term.span to lazy { size.quote(it.type) })
+        expectedTypes.add(term.span to lazy { size.quote(it.type) })
     }
 }
 
