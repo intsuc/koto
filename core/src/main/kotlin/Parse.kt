@@ -22,13 +22,14 @@ sealed interface Concrete {
 
     data class Fun(
         val name: Ident,
-        val param: Concrete,
+        val param: Concrete?,
         val result: Concrete?,
         val body: Concrete?,
         val scope: Span,
         override val span: Span,
     ) : Concrete {
         init {
+            require(!(param == null && body == null))
             require(!(result == null && body == null))
         }
     }
@@ -166,6 +167,8 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
             )
         }
         // fun( x : a ) → b
+        // fun( x ) { e }
+        // fun( x ) → b { e }
         // fun( x : a ) { e }
         // fun( x : a ) → b { e }
         "fun" -> {
@@ -177,15 +180,14 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
             }
             skipWhitespace()
             val name = parseIdent()
-            start = cursor
             skipWhitespace()
-            if (!peekable() || peek() != ':') {
-                val _ = diagnose("Expected `:` after parameter name", Span(start, start + 1u))
+            val param = if (!peekable() || peek() != ':') {
+                null
             } else {
                 skip() // :
+                skipWhitespace()
+                parseAtLeast(0u)
             }
-            skipWhitespace()
-            val param = parseAtLeast(0u)
             start = cursor
             skipWhitespace()
             if (!peekable() || peek() != ')') {
@@ -201,7 +203,6 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
                 skipWhitespace()
                 parseAtLeast(0u)
             } else {
-                // val _ = diagnose("Expected `→` after parameter", Span(start, start + 1u))
                 null
             }
             var end = cursor
