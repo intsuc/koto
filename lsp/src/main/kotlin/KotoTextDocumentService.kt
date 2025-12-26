@@ -51,14 +51,26 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
         })))
     }
 
-    override fun hover(params: HoverParams): CompletableFuture<Hover> {
+    override fun hover(params: HoverParams): CompletableFuture<Hover?> {
         val text = getText(params.textDocument)
         val parseResult = parse(text)
         val elaborateResult = elaborate(parseResult)
         val offset = params.position.toOffset(parseResult.lineStarts)
-        val type = elaborateResult.types.getLeaf(offset)?.value ?: return completedFuture(null)
-        val typeString = stringify(type, 0u)
-        return completedFuture(Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$typeString\n```")))
+        val expectedType = elaborateResult.expectedTypes.getLeaf(offset)?.value
+        val actualType = elaborateResult.actualTypes.getLeaf(offset)?.value
+        if (expectedType == null && actualType == null) {
+            return completedFuture(null)
+        }
+        val expectedString = expectedType?.let { "expected : ${stringify(it, 0u)}\n" } ?: ""
+        val actualString = actualType?.let { "actual   : ${stringify(it, 0u)}\n" } ?: ""
+        return completedFuture(
+            Hover(
+                MarkupContent(
+                    MarkupKind.MARKDOWN,
+                    "```koto\n$expectedString$actualString```",
+                ),
+            ),
+        )
     }
 
     override fun completion(params: CompletionParams): CompletableFuture<Either<List<CompletionItem>, CompletionList>> {
