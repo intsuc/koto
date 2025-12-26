@@ -13,6 +13,7 @@ sealed interface Concrete {
 
     data class Let(
         val name: Ident,
+        val anno: Concrete?,
         val init: Concrete,
         val body: Concrete,
         val scope: Span,
@@ -136,6 +137,14 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
             val name = parseIdent()
             val start = cursor
             skipWhitespace()
+            val anno = if (!peekable() || peek() != ':') {
+                null
+            } else {
+                skip() // :
+                skipWhitespace()
+                parseAtLeast(0u)
+            }
+            skipWhitespace()
             if (!peekable() || peek() != '=') {
                 val _ = diagnose("Expected `=` after `let`", Span(start, start + 1u))
             } else {
@@ -149,6 +158,7 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
             val scopeEnd = cursor
             Concrete.Let(
                 name = name,
+                anno = anno,
                 init = init,
                 body = body,
                 scope = Span(scopeStart, scopeEnd),

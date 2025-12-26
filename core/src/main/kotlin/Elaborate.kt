@@ -251,7 +251,11 @@ private fun ElaborateState.synth(term: Concrete): Anno {
         }
 
         is Concrete.Let -> {
-            val init = synth(term.init)
+            val anno = term.anno?.let { anno -> check(anno, Value.Type) }
+            val init = anno?.let { anno ->
+                val annoV = eval(anno.term)
+                check(term.init, annoV)
+            } ?: synth(term.init)
             actualTypes.add(term.name.span to lazy { size.quote(init.type) })
             scopes.add(term.scope to term.name.text)
             entries.add(Entry(term.name.text, init.type))
@@ -370,7 +374,11 @@ private fun ElaborateState.synth(term: Concrete): Anno {
 private fun ElaborateState.check(term: Concrete, expected: Value): Anno {
     return when (term) {
         is Concrete.Let -> {
-            val init = synth(term.init)
+            val anno = term.anno?.let { anno -> check(anno, Value.Type) }
+            val init = anno?.let { anno ->
+                val annoV = eval(anno.term)
+                check(term.init, annoV)
+            } ?: synth(term.init)
             actualTypes.add(term.name.span to lazy { size.quote(init.type) })
             scopes.add(term.scope to term.name.text)
             entries.add(Entry(term.name.text, init.type))
