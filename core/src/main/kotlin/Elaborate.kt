@@ -62,9 +62,7 @@ sealed interface Abstract {
         val index: Index,
     ) : Abstract
 
-    data class Err(
-        val message: String,
-    ) : Abstract
+    data object Err : Abstract
 }
 
 sealed interface Value {
@@ -138,9 +136,9 @@ private class ElaborateState {
     val size: Level get() = entries.size.toUInt()
 }
 
-private fun ElaborateState.diagnose(message: String, span: Span): Abstract {
+private fun ElaborateState.diagnose(message: String, span: Span, expected: Value = Value.Err): Anno {
     diagnostics.add(Diagnostic(message, span))
-    return Abstract.Err(message)
+    return Anno(Abstract.Err, expected)
 }
 
 private fun ElaborateState.eval(term: Abstract): Value {
@@ -150,6 +148,14 @@ private fun ElaborateState.eval(term: Abstract): Value {
         is Abstract.BoolOf -> Value.BoolOf(term.value)
         is Abstract.Int64 -> Value.Int64
         is Abstract.Int64Of -> Value.Int64Of(term.value)
+        is Abstract.Let -> {
+            val init = eval(term.init)
+            entries.add(Entry(term.name, init))
+            val body = eval(term.body)
+            entries.removeAt(entries.lastIndex)
+            body
+        }
+
         is Abstract.Var -> {
             val level = entries.lastIndex.toUInt() - term.index
             Value.Var(term.text, level)
@@ -183,7 +189,7 @@ private fun ElaborateState.eval(term: Abstract): Value {
             eval(term.second),
         )
 
-        else -> Value.Err
+        is Abstract.Err -> Value.Err
     }
 }
 
@@ -225,7 +231,7 @@ private fun Level.quote(value: Value): Abstract {
             this - value.level - 1u,
         )
 
-        is Value.Err -> Abstract.Err("_")
+        is Value.Err -> Abstract.Err
     }
 }
 
@@ -250,6 +256,7 @@ private fun Level.conv(term1: Value, term2: Value): Boolean {
         is Value.PairOf if term2 is Value.PairOf -> conv(term1.first, term2.first) && conv(term1.second, term2.second)
         is Value.Var if term2 is Value.Var -> term1.level == term2.level
         is Value.Err -> true
+        else if term2 == Value.Err -> true
         else -> false
     }
 }
@@ -269,7 +276,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
             "int64" -> Anno(Abstract.Int64, Value.Type)
             else -> when (val level = entries.indexOfLast { it.name == term.text }) {
                 -1 -> when (val value = term.text.toLongOrNull()) {
-                    null -> Anno(diagnose("Unknown identifier: ${term.text}", term.span), Value.Err)
+                    null -> diagnose("Unknown identifier `${term.text}`", term.span)
                     else -> Anno(Abstract.Int64Of(value), Value.Int64)
                 }
 
@@ -364,10 +371,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
         }
 
         is Concrete.Fun -> {
-            Anno(
-                diagnose("Function parameter type annotation is required", term.span),
-                Value.Err,
-            )
+            diagnose("Function parameter type annotation is required", term.span)
         }
 
         is Concrete.Call -> {
@@ -388,10 +392,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
                 else -> {
                     val _ = synth(term.arg)
                     val actualType = stringify(size.quote(funcType), 0u)
-                    Anno(
-                        diagnose("Expected type = function type\nActual type = $actualType", term.func.span),
-                        Value.Err,
-                    )
+                    diagnose("Expected function type, but found `$actualType`", term.func.span)
                 }
             }
         }
@@ -411,7 +412,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
             )
         }
 
-        is Concrete.Err -> Anno(Abstract.Err(term.message), Value.Err)
+        is Concrete.Err -> Anno(Abstract.Err, Value.Err)
     }.also {
         actualTypes.add(term.span to lazy { size.quote(it.type) })
     }
@@ -486,7 +487,7 @@ private fun ElaborateState.check(term: Concrete, expected: Value): Anno {
             } else {
                 val expectedType = stringify(size.quote(expected), 0u)
                 val actualType = stringify(size.quote(synthesized.type), 0u)
-                Anno(diagnose("Expected type = ${expectedType}\nActual type = $actualType", term.span), expected)
+                diagnose("Expected `${expectedType}` but found `${actualType}`", term.span, expected)
             }
         }
     }.also {
