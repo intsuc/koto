@@ -25,6 +25,12 @@ sealed interface Abstract {
         val value: Long,
     ) : Abstract
 
+    data object Float64 : Abstract
+
+    data class Float64Of(
+        val value: Double,
+    ) : Abstract
+
     data class Let(
         val name: String,
         val init: Abstract,
@@ -78,6 +84,12 @@ sealed interface Value {
 
     data class Int64Of(
         val value: Long,
+    ) : Value
+
+    data object Float64 : Value
+
+    data class Float64Of(
+        val value: Double,
     ) : Value
 
     data class Fun(
@@ -148,6 +160,8 @@ private fun ElaborateState.eval(term: Abstract): Value {
         is Abstract.BoolOf -> Value.BoolOf(term.value)
         is Abstract.Int64 -> Value.Int64
         is Abstract.Int64Of -> Value.Int64Of(term.value)
+        is Abstract.Float64 -> Value.Float64
+        is Abstract.Float64Of -> Value.Float64Of(term.value)
         is Abstract.Let -> {
             val init = eval(term.init)
             entries.add(Entry(term.name, init))
@@ -200,6 +214,8 @@ private fun Level.quote(value: Value): Abstract {
         is Value.BoolOf -> Abstract.BoolOf(value.value)
         is Value.Int64 -> Abstract.Int64
         is Value.Int64Of -> Abstract.Int64Of(value.value)
+        is Value.Float64 -> Abstract.Float64
+        is Value.Float64Of -> Abstract.Float64Of(value.value)
         is Value.Fun -> Abstract.Fun(
             value.text,
             quote(value.param),
@@ -242,6 +258,8 @@ private fun Level.conv(term1: Value, term2: Value): Boolean {
         is Value.BoolOf if term2 is Value.BoolOf -> term1.value == term2.value
         is Value.Int64 if term2 is Value.Int64 -> true
         is Value.Int64Of if term2 is Value.Int64Of -> term1.value == term2.value
+        is Value.Float64 if term2 is Value.Float64 -> true
+        is Value.Float64Of if term2 is Value.Float64Of -> term1.value == term2.value
         is Value.Fun if term2 is Value.Fun -> {
             conv(term1.param, term2.param) &&
                     Value.Var("$$this", this).let { x -> (this + 1u).conv(term1.result(x), term2.result(x)) }
@@ -274,11 +292,13 @@ private fun ElaborateState.synth(term: Concrete): Anno {
             "false" -> Anno(Abstract.BoolOf(false), Value.Bool)
             "true" -> Anno(Abstract.BoolOf(true), Value.Bool)
             "int64" -> Anno(Abstract.Int64, Value.Type)
+            "float64" -> Anno(Abstract.Float64, Value.Type)
             else -> when (val level = entries.indexOfLast { it.name == term.text }) {
-                -1 -> when (val value = term.text.toLongOrNull()) {
-                    null -> diagnose("Unknown identifier `${term.text}`", term.span)
-                    else -> Anno(Abstract.Int64Of(value), Value.Int64)
-                }
+                -1 -> term.text.toLongOrNull()?.let { value ->
+                    Anno(Abstract.Int64Of(value), Value.Int64)
+                } ?: term.text.toDoubleOrNull()?.let { value ->
+                    Anno(Abstract.Float64Of(value), Value.Float64)
+                } ?: diagnose("Unknown identifier `${term.text}`", term.span)
 
                 else -> {
                     val index = (entries.lastIndex - level).toUInt()

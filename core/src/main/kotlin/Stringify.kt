@@ -7,6 +7,8 @@ fun stringify(term: Abstract, minBp: UInt): String {
         is Abstract.BoolOf -> if (term.value) "true" else "false"
         is Abstract.Int64 -> "int64"
         is Abstract.Int64Of -> "${term.value}"
+        is Abstract.Float64 -> "float64"
+        is Abstract.Float64Of -> "${term.value}"
         is Abstract.Let -> "let ${term.name} = ${stringify(term.init, 0u)}; ${stringify(term.body, 0u)}"
         is Abstract.Fun -> "fun(${term.name} : ${stringify(term.param, 0u)}) → ${stringify(term.result, 0u)}"
         is Abstract.FunOf -> "fun(${term.name}) { ${stringify(term.body, 0u)} }"

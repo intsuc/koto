@@ -6,6 +6,10 @@ let id-t = fun(x : int64) → int64
 let b = bool
 let t = true
 let f = false
+let float = float64
+let pi = 3.14159
+let -pi = -3.14159
+let pi : float64 = 3.14159
 
 let pair = 1, 2
 let pair : int64, int64 = 1, 2

@@ -13,15 +13,15 @@
       "name": "keyword.koto"
     },
     {
-      "match": "\\b(?:type|bool|false|true|int64)\\b",
+      "match": "\\b(?:type|bool|false|true|int64|float64)\\b",
       "name": "constant.language.koto"
     },
     {
-      "match": "-?[0-9]+",
+      "match": "-?[0-9.]+",
       "name": "constant.numeric.koto"
     },
     {
-      "match": "[a-z0-9-]+",
+      "match": "[a-z0-9.-]+",
       "name": "variable.koto"
     }
   ]

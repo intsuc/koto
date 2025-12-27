@@ -114,7 +114,7 @@ private fun ParseState.diagnose(message: String, span: Span): Concrete {
 }
 
 private fun Char.isIdent(): Boolean = when (this) {
-    in 'a'..'z', in '0'..'9', '-' -> true
+    in 'a'..'z', in '0'..'9', '.', '-' -> true
     else -> false
 }
 
