@@ -71,6 +71,7 @@ fun(x : type) → type {
 ## Random resources
 
 - [Using dependent types to express modular structure](https://doi.org/10.1145/512644.512670)
+- [Type Universes as Kripke Worlds](https://doi.org/10.1145/3747532)
 - [Linearity and Uniqueness: An Entente Cordiale](https://doi.org/10.1007/978-3-030-99336-8_13)
 - [Functional Ownership through Fractional Uniqueness](https://doi.org/10.1145/3649848)
 - [Law and Order for Typestate with Borrowing](https://doi.org/10.1145/3689763)
