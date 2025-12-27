@@ -7,6 +7,13 @@ let b = bool
 let t = true
 let f = false
 
+let pair = 1, 2
+let pair : int64, int64 = 1, 2
+let pair3 = 1, 2, 3
+let pair3 : int64, int64, int64 = 1, 2, 3
+let pair3 : int64, (int64, int64) = 1, 2, 3
+let pair3 : (int64, int64), int64 = (1, 2), 3
+
 # let id = fun(x) { x }
 let id = fun(x : int64) { x }
 let id = fun(x : int64) → int64 { x }

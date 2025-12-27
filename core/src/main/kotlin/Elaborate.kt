@@ -47,6 +47,16 @@ sealed interface Abstract {
         val arg: Abstract,
     ) : Abstract
 
+    data class Pair(
+        val first: Abstract,
+        val second: Abstract,
+    ) : Abstract
+
+    data class PairOf(
+        val first: Abstract,
+        val second: Abstract,
+    ) : Abstract
+
     data class Var(
         val text: String,
         val index: Index,
@@ -86,6 +96,16 @@ sealed interface Value {
     data class Call(
         val func: Value,
         val arg: Value,
+    ) : Value
+
+    data class Pair(
+        val first: Value,
+        val second: Value,
+    ) : Value
+
+    data class PairOf(
+        val first: Value,
+        val second: Value,
     ) : Value
 
     data class Var(
@@ -153,11 +173,20 @@ private fun ElaborateState.eval(term: Abstract): Value {
             }
         }
 
+        is Abstract.Pair -> Value.Pair(
+            eval(term.first),
+            eval(term.second),
+        )
+
+        is Abstract.PairOf -> Value.PairOf(
+            eval(term.first),
+            eval(term.second),
+        )
+
         else -> Value.Err
     }
 }
 
-// TODO
 private fun Level.quote(value: Value): Abstract {
     return when (value) {
         is Value.Type -> Abstract.Type
@@ -179,6 +208,16 @@ private fun Level.quote(value: Value): Abstract {
         is Value.Call -> Abstract.Call(
             quote(value.func),
             quote(value.arg),
+        )
+
+        is Value.Pair -> Abstract.Pair(
+            quote(value.first),
+            quote(value.second),
+        )
+
+        is Value.PairOf -> Abstract.PairOf(
+            quote(value.first),
+            quote(value.second),
         )
 
         is Value.Var -> Abstract.Var(
@@ -206,11 +245,9 @@ private fun Level.conv(term1: Value, term2: Value): Boolean {
             Value.Var("$$this", this).let { x -> (this + 1u).conv(term1.body(x), term2.body(x)) }
         }
 
-        is Value.Call if term2 is Value.Call -> {
-            conv(term1.func, term2.func) &&
-                    conv(term1.arg, term2.arg)
-        }
-
+        is Value.Call if term2 is Value.Call -> conv(term1.func, term2.func) && conv(term1.arg, term2.arg)
+        is Value.Pair if term2 is Value.Pair -> conv(term1.first, term2.first) && conv(term1.second, term2.second)
+        is Value.PairOf if term2 is Value.PairOf -> conv(term1.first, term2.first) && conv(term1.second, term2.second)
         is Value.Var if term2 is Value.Var -> term1.level == term2.level
         is Value.Err -> true
         else -> false
@@ -359,6 +396,21 @@ private fun ElaborateState.synth(term: Concrete): Anno {
             }
         }
 
+        is Concrete.Pair -> {
+            val first = synth(term.first)
+            val second = synth(term.second)
+            Anno(
+                Abstract.PairOf(
+                    first.term,
+                    second.term,
+                ),
+                Value.Pair(
+                    first.type,
+                    second.type,
+                ),
+            )
+        }
+
         is Concrete.Err -> Anno(Abstract.Err(term.message), Value.Err)
     }.also {
         actualTypes.add(term.span to lazy { size.quote(it.type) })
@@ -398,6 +450,30 @@ private fun ElaborateState.check(term: Concrete, expected: Value): Anno {
                 Abstract.FunOf(
                     term.name.text,
                     body.term,
+                ),
+                expected,
+            )
+        }
+
+        is Concrete.Pair if expected is Value.Type -> {
+            val first = check(term.first, Value.Type)
+            val second = check(term.second, Value.Type)
+            Anno(
+                Abstract.Pair(
+                    first.term,
+                    second.term,
+                ),
+                expected,
+            )
+        }
+
+        is Concrete.Pair if expected is Value.Pair -> {
+            val first = check(term.first, expected.first)
+            val second = check(term.second, expected.second)
+            Anno(
+                Abstract.PairOf(
+                    first.term,
+                    second.term,
                 ),
                 expected,
             )

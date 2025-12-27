@@ -40,6 +40,12 @@ sealed interface Concrete {
         override val span: Span,
     ) : Concrete
 
+    data class Pair(
+        val first: Concrete,
+        val second: Concrete,
+        override val span: Span,
+    ) : Concrete
+
     data class Err(
         val message: String,
         override val span: Span,
@@ -130,6 +136,20 @@ private fun ParseState.parseIdent(): Concrete.Ident {
 }
 
 private fun ParseState.parseHead(minBp: UInt): Concrete {
+    if (peekable() && peek() == '(') {
+        skip() // (
+        skipWhitespace()
+        val inner = parseAtLeast(0u)
+        val start = cursor
+        skipWhitespace()
+        if (!peekable() || peek() != ')') {
+            val _ = diagnose("Expected `)`", Span(start, start + 1u))
+        } else {
+            skip() // )
+        }
+        return inner
+    }
+
     val (text, span) = parseWord()
     return when (text) {
         // let x = e1 e2
@@ -269,6 +289,19 @@ private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete 
             span = Span(head.span.start, end),
         )
         return parseTail(minBp, call)
+    }
+
+    // h, e
+    if (minBp <= 10u && peekable() && peek() == ',') {
+        skip() // ,
+        skipWhitespace()
+        val second = parseAtLeast(10u)
+        val pair = Concrete.Pair(
+            first = head,
+            second = second,
+            span = Span(head.span.start, second.span.endExclusive),
+        )
+        return parseTail(minBp, pair)
     }
 
     return head
