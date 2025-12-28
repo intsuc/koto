@@ -21,9 +21,45 @@
 
 ```ヿ
 # line comment
-fun(x : type) → type {
-	x
-}(int64)
+
+let zero = 0
+let zero : int64 = 0
+let b = bool
+let t = true
+let f = false
+let float = float64
+let pi = 3.14159
+let -pi = -3.14159
+let pi : float64 = 3.14159
+
+let pair = 1, 2
+let pair : int64, int64 = 1, 2
+let pair3 = 1, 2, 3
+let pair3 : int64, int64, int64 = 1, 2, 3
+let pair3 : int64, (int64, int64) = 1, 2, 3
+let pair3 : (int64, int64), int64 = (1, 2), 3
+let d-pair : a : type, a = int64, 1
+let d-pair4 : a : type, b : type, a, b = bool, int64, true, 1
+
+let func : int64 → int64 = x → x
+let func3 : int64 → int64 → int64 = x → y → y
+let func3 : int64 → (int64 → int64) = x → y → y
+let func3 : (int64 → int64) → int64 = f → f(0)
+let d-func = a : type → a
+let d-func3 = a : type → b : type → b
+
+# let id = x → x
+let id = x : int64 → x
+let id : int64 → int64 = x → x
+let id : int64 → int64 = x : int64 → x
+
+let d-id  = a-t : type → a : a-t → a
+
+let - = id(1)
+let - = d-id(int64)
+let - = d-id(int64)(3)
+
+type
 ```
 
 ## Supported platforms
@@ -43,24 +79,24 @@ fun(x : type) → type {
 
 - Everything is an expression.
 - If we adopt an LL(1) grammar, autoregressive text models will always be able to generate syntactically correct code by applying logit bias.
-  - The property that adding tokens to the end of code with no errors will not introduce errors (except for temporary syntax errors).
+    - The property that adding tokens to the end of code with no errors will not introduce errors (except for temporary syntax errors).
 - Create a dataset about this language.
-  - Fine-tune existing LLMs using this dataset.
+    - Fine-tune existing LLMs using this dataset.
 - Design an LLM architecture specialized for this language.
 - Phase transitions of code:
-  1. During editing (LSP requests): perform the computation required for the response.
-  2. Before execution: perform runtime checks if necessary.
-  3. During execution: run the code.
+    1. During editing (LSP requests): perform the computation required for the response.
+    2. Before execution: perform runtime checks if necessary.
+    3. During execution: run the code.
 - Uniqueness / linearity types.
-  - Or more generally, fractional / quantitative types.
+    - Or more generally, fractional / quantitative types.
 - Ordered types.
-  - There are application examples to type states.
+    - There are application examples to type states.
 - *n*-bit integer types (signed/unsigned).
 - Refinement types that are runtime-checked as needed.
 - A UTF-8 string type as a refinement type over a byte array.
 - Compile polymorphic code via existentialization.
-  - If you want to optimize to the extreme, you can specialize polymorphic code for concrete types via runtime code generation. (runtime monomorphization)
-  - Type cases are also possible.
+    - If you want to optimize to the extreme, you can specialize polymorphic code for concrete types via runtime code generation. (runtime monomorphization)
+    - Type cases are also possible.
 - Recursive functions that do not cause stack overflows.
 - Use a memory allocator that understands the language semantics.
 - Region-based memory management.

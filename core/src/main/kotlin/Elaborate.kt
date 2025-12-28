@@ -45,7 +45,7 @@ sealed interface Abstract {
 
     data class FunOf(
         val name: String,
-        val body: Abstract,
+        val result: Abstract,
     ) : Abstract
 
     data class Call(
@@ -101,7 +101,7 @@ sealed interface Value {
 
     data class FunOf(
         val text: String,
-        val body: (arg: Value) -> Value,
+        val result: (arg: Value) -> Value,
     ) : Value
 
     data class Call(
@@ -184,13 +184,13 @@ private fun ElaborateState.eval(term: Abstract): Value {
 
         is Abstract.FunOf -> Value.FunOf(
             term.name,
-        ) { arg -> eval(term.body) }
+        ) { arg -> eval(term.result) }
 
         is Abstract.Call -> {
             val func = eval(term.func)
             val arg = eval(term.arg)
             when (func) {
-                is Value.FunOf -> func.body(arg)
+                is Value.FunOf -> func.result(arg)
                 else -> Value.Call(func, arg)
             }
         }
@@ -227,7 +227,7 @@ private fun Level.quote(value: Value): Abstract {
 
         is Value.FunOf -> Abstract.FunOf(
             value.text,
-            quote(value.body(Value.Var(value.text, this))),
+            quote(value.result(Value.Var(value.text, this))),
         )
 
         is Value.Call -> Abstract.Call(
@@ -270,7 +270,7 @@ private fun Level.conv(term1: Value, term2: Value): Boolean {
         }
 
         is Value.FunOf if term2 is Value.FunOf -> {
-            Value.Var("$$this", this).let { x -> (this + 1u).conv(term1.body(x), term2.body(x)) }
+            Value.Var("$$this", this).let { x -> (this + 1u).conv(term1.result(x), term2.result(x)) }
         }
 
         is Value.Call if term2 is Value.Call -> conv(term1.func, term2.func) && conv(term1.arg, term2.arg)
@@ -290,6 +290,7 @@ private data class Anno(
 
 private fun ElaborateState.synth(term: Concrete): Anno {
     return when (term) {
+        // x  ⇒  v
         is Concrete.Ident -> when (term.text) {
             "type" -> Anno(Abstract.Type, Value.Type)
             "bool" -> Anno(Abstract.Bool, Value.Type)
@@ -312,6 +313,8 @@ private fun ElaborateState.synth(term: Concrete): Anno {
             }
         }
 
+        // let x = e e  ⇒  v
+        // let x : e = e e  ⇒  v
         is Concrete.Let -> {
             val anno = term.anno?.let { anno -> check(anno, Value.Type) }
             val init = anno?.let { anno ->
@@ -333,77 +336,35 @@ private fun ElaborateState.synth(term: Concrete): Anno {
             )
         }
 
-        // fun(x : e) → e
-        is Concrete.Fun if term.param != null && term.result != null && term.body == null -> {
+        // x : e → e  ⇒  v → v
+        is Concrete.Fun if term.name != null -> {
             val param = check(term.param, Value.Type)
-            if (term.name != null) {
-                scopes.add(term.scope to term.name.text)
-                entries.add(Entry(term.name.text, eval(param.term)))
-            }
-            val result = check(term.result, Value.Type)
-            if (term.name != null) {
-                entries.removeAt(entries.lastIndex)
-            }
+            val paramV = eval(param.term)
+            actualTypes.add(term.name.span to lazy { size.quote(paramV) })
+            scopes.add(term.scope to term.name.text)
+            entries.add(Entry(term.name.text, paramV))
+            val result = synth(term.result)
+            val resultType = size.quote(result.type)
+            entries.removeAt(entries.lastIndex)
             Anno(
-                Abstract.Fun(
-                    term.name?.text,
-                    param.term,
+                Abstract.FunOf(
+                    term.name.text,
                     result.term,
                 ),
-                Value.Type,
-            )
-        }
-
-        // fun(x : e) { e }
-        is Concrete.Fun if term.param != null && term.result == null && term.body != null -> {
-            val param = check(term.param, Value.Type)
-            val paramV = eval(param.term)
-            requireNotNull(term.name)
-            actualTypes.add(term.name.span to lazy { size.quote(paramV) })
-            scopes.add(term.scope to term.name.text)
-            entries.add(Entry(term.name.text, paramV))
-            val body = synth(term.body)
-            val result = size.quote(body.type)
-            entries.removeAt(entries.lastIndex)
-            Anno(
-                Abstract.FunOf(
-                    term.name.text,
-                    body.term,
-                ),
                 Value.Fun(
                     term.name.text,
                     eval(param.term),
-                ) { arg -> eval(result) },
+                ) { arg -> eval(resultType) },
             )
         }
 
-        // fun(x : e) → e { e }
-        is Concrete.Fun if term.param != null -> {
-            val param = check(term.param, Value.Type)
-            val paramV = eval(param.term)
-            requireNotNull(term.name)
-            actualTypes.add(term.name.span to lazy { size.quote(paramV) })
-            scopes.add(term.scope to term.name.text)
-            entries.add(Entry(term.name.text, paramV))
-            val result = check(term.result!!, Value.Type)
-            val body = check(term.body!!, eval(result.term))
-            entries.removeAt(entries.lastIndex)
-            Anno(
-                Abstract.FunOf(
-                    term.name.text,
-                    body.term,
-                ),
-                Value.Fun(
-                    term.name.text,
-                    eval(param.term),
-                ) { arg -> eval(result.term) },
-            )
-        }
-
+        // e → e  ⇒  v
         is Concrete.Fun -> {
+            // TODO: infer parameter type by unification?
             diagnose("Function parameter type annotation is required", term.span)
         }
 
+        // e ( e )  ⇒  v
         is Concrete.Call -> {
             val func = synth(term.func)
             when (val funcType = func.type) {
@@ -427,6 +388,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
             }
         }
 
+        // x : e , e  ⇒  type
         is Concrete.Pair if term.name != null -> {
             val first = check(term.first, Value.Type)
             actualTypes.add(term.name.span to lazy { size.quote(first.type) })
@@ -444,6 +406,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
             )
         }
 
+        // e , e  ⇒  v , v
         is Concrete.Pair -> {
             val first = synth(term.first)
             val second = synth(term.second)
@@ -468,6 +431,8 @@ private fun ElaborateState.synth(term: Concrete): Anno {
 
 private fun ElaborateState.check(term: Concrete, expected: Value): Anno {
     return when (term) {
+        // let x = e e  ⇐  v
+        // let x : e = e e  ⇐  v
         is Concrete.Let -> {
             val anno = term.anno?.let { anno -> check(anno, Value.Type) }
             val init = anno?.let { anno ->
@@ -489,22 +454,48 @@ private fun ElaborateState.check(term: Concrete, expected: Value): Anno {
             )
         }
 
-        is Concrete.Fun if term.param == null && term.result == null && term.body != null && expected is Value.Fun -> {
-            requireNotNull(term.name)
-            actualTypes.add(term.name.span to lazy { size.quote(expected.param) })
-            scopes.add(term.scope to term.name.text)
-            entries.add(Entry(term.name.text, expected.param))
-            val body = check(term.body, expected.result(Value.Var(term.name.text, size)))
-            entries.removeAt(entries.lastIndex)
+        // e → e  ⇐  type
+        // x : e → e  ⇐  type
+        is Concrete.Fun if expected is Value.Type -> {
+            val param = check(term.param, Value.Type)
+            if (term.name != null) {
+                scopes.add(term.scope to term.name.text)
+                entries.add(Entry(term.name.text, eval(param.term)))
+            }
+            val result = check(term.result, Value.Type)
+            if (term.name != null) {
+                entries.removeAt(entries.lastIndex)
+            }
             Anno(
-                Abstract.FunOf(
-                    term.name.text,
-                    body.term,
+                Abstract.Fun(
+                    term.name?.text,
+                    param.term,
+                    result.term,
                 ),
                 expected,
             )
         }
 
+        // x → e  ⇐  v → v
+        is Concrete.Fun if term.name == null && term.param is Concrete.Ident && expected is Value.Fun -> {
+            val paramV = expected.param
+            actualTypes.add(term.param.span to lazy { size.quote(paramV) })
+            scopes.add(term.scope to term.param.text)
+            entries.add(Entry(term.param.text, paramV))
+            val resultType = expected.result(Value.Var(term.param.text, size))
+            val result = check(term.result, resultType)
+            entries.removeAt(entries.lastIndex)
+            Anno(
+                Abstract.FunOf(
+                    term.param.text,
+                    result.term,
+                ),
+                expected,
+            )
+        }
+
+        // e , e  ⇐  type
+        // x : e , e  ⇐  type
         is Concrete.Pair if expected is Value.Type -> {
             val first = check(term.first, Value.Type)
             if (term.name != null) {
@@ -526,6 +517,7 @@ private fun ElaborateState.check(term: Concrete, expected: Value): Anno {
             )
         }
 
+        // e , e  ⇐  v , v
         is Concrete.Pair if term.name == null && expected is Value.Pair -> {
             val first = check(term.first, expected.first)
             val second = check(term.second, expected.second)
@@ -538,6 +530,7 @@ private fun ElaborateState.check(term: Concrete, expected: Value): Anno {
             )
         }
 
+        // e  ⇐  v
         else -> {
             val synthesized = synth(term)
             if (size.conv(synthesized.type, expected)) {

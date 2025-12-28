@@ -2,7 +2,6 @@
 
 let zero = 0
 let zero : int64 = 0
-let id-t = int64 → int64
 let b = bool
 let t = true
 let f = false
@@ -17,27 +16,25 @@ let pair3 = 1, 2, 3
 let pair3 : int64, int64, int64 = 1, 2, 3
 let pair3 : int64, (int64, int64) = 1, 2, 3
 let pair3 : (int64, int64), int64 = (1, 2), 3
-let dpair : a : type, a = int64, 1
-let dpair4 : a : type, b : type, a, b = bool, int64, true, 1
+let d-pair : a : type, a = int64, 1
+let d-pair4 : a : type, b : type, a, b = bool, int64, true, 1
 
-let func : int64 → int64 = fun(x) { x }
-let func3 : int64 → int64 → int64 = fun(x) { fun(y) { y } }
-let func3 : int64 → (int64 → int64) = fun(x) { fun(y) { y } }
-let func3 : (int64 → int64) → int64 = fun(f) { f(0) }
-let dfunc = a : type → a
-let dfunc3 = a : type → b : type → b
+let func : int64 → int64 = x → x
+let func3 : int64 → int64 → int64 = x → y → y
+let func3 : int64 → (int64 → int64) = x → y → y
+let func3 : (int64 → int64) → int64 = f → f(0)
+let d-func = a : type → a
+let d-func3 = a : type → b : type → b
 
-# let id = fun(x) { x }
-let id = fun(x : int64) { x }
-let id = fun(x : int64) → int64 { x }
-let id : int64 → int64 = fun(x) { x }
-let id : int64 → int64 = fun(x : int64) { x }
-let id : int64 → int64 = fun(x : int64) → int64 { x }
+# let id = x → x
+let id = x : int64 → x
+let id : int64 → int64 = x → x
+let id : int64 → int64 = x : int64 → x
 
-let id3  = fun(a-t : type) { fun(a : a-t) { a } }
+let d-id  = a-t : type → a : a-t → a
 
 let - = id(1)
-let - = id3(int64)
-let - = id3(int64)(3)
+let - = d-id(int64)
+let - = d-id(int64)(3)
 
 type

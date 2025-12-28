@@ -6,11 +6,14 @@ import koto.core.util.Span
 sealed interface Concrete {
     val span: Span
 
+    // x
     data class Ident(
         val text: String,
         override val span: Span,
     ) : Concrete
 
+    // let x = e e
+    // let x : e = e e
     data class Let(
         val name: Ident,
         val anno: Concrete?,
@@ -20,26 +23,25 @@ sealed interface Concrete {
         override val span: Span,
     ) : Concrete
 
+    // e → e
+    // x : e → e
     data class Fun(
         val name: Ident?,
-        val param: Concrete?,
-        val result: Concrete?,
-        val body: Concrete?,
+        val param: Concrete,
+        val result: Concrete,
         val scope: Span,
         override val span: Span,
-    ) : Concrete {
-        init {
-            require(!(param == null && body == null))
-            require(!(result == null && body == null))
-        }
-    }
+    ) : Concrete
 
+    // e ( e )
     data class Call(
         val func: Concrete,
         val arg: Concrete,
         override val span: Span,
     ) : Concrete
 
+    // e , e
+    // x : e , e
     data class Pair(
         val name: Ident?,
         val first: Concrete,
@@ -188,78 +190,6 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
                 span = Span(span.start, cursor),
             )
         }
-        // fun( x : a ) → b
-        // fun( x ) { e }
-        // fun( x ) → b { e }
-        // fun( x : a ) { e }
-        // fun( x : a ) → b { e }
-        "fun" -> {
-            var start = cursor
-            if (!peekable() || peek() != '(') {
-                return diagnose("Expected `(` after `fun`", Span(start, start + 1u))
-            } else {
-                skip() // (
-            }
-            skipWhitespace()
-            val name = parseIdent()
-            skipWhitespace()
-            val param = if (!peekable() || peek() != ':') {
-                null
-            } else {
-                skip() // :
-                skipWhitespace()
-                parseAtLeast(0u)
-            }
-            start = cursor
-            skipWhitespace()
-            if (!peekable() || peek() != ')') {
-                return diagnose("Expected `)` after parameter type", Span(start, start + 1u))
-            } else {
-                skip() // )
-            }
-            val scopeStart = cursor
-            start = cursor
-            skipWhitespace()
-            val result = if (peekable() && peek() == '→') {
-                skip() // →
-                skipWhitespace()
-                parseAtLeast(0u)
-            } else {
-                null
-            }
-            var end = cursor
-            skipWhitespace()
-            val scopeEnd: UInt
-            val body = if (peekable() && peek() == '{') {
-                skip() // {
-                skipWhitespace()
-                val body = parseAtLeast(0u)
-                start = cursor
-                skipWhitespace()
-                scopeEnd = cursor
-                if (!peekable() || peek() != '}') {
-                    val _ = diagnose("Expected `}` after function body", Span(start, start + 1u))
-                } else {
-                    skip() // }
-                }
-                end = cursor
-                body
-            } else if (result == null) {
-                scopeEnd = cursor
-                diagnose("Expected result type", Span(start, start + 1u))
-            } else {
-                scopeEnd = cursor
-                null
-            }
-            Concrete.Fun(
-                name = name,
-                param = param,
-                result = result,
-                body = body,
-                scope = Span(scopeStart, scopeEnd),
-                span = Span(span.start, end),
-            )
-        }
 
         else if text.isNotEmpty() -> {
             Concrete.Ident(text, span)
@@ -333,7 +263,6 @@ private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete 
                 name = head,
                 param = first,
                 result = result,
-                body = null,
                 scope = Span(scopeStart, scopeEnd),
                 span = Span(head.span.start, result.span.endExclusive),
             )
@@ -367,7 +296,6 @@ private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete 
             name = null,
             param = head,
             result = result,
-            body = null,
             scope = Span.ZERO,
             span = Span(head.span.start, result.span.endExclusive),
         )
