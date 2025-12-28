@@ -295,32 +295,52 @@ private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete 
         return parseTail(minBp, next)
     }
 
-    // h : e , e
+    // h : e
     if (head is Concrete.Ident && minBp <= 10u && peekable() && peek() == ':') {
         skipWhitespace()
         skip() // :
         skipWhitespace()
         val first = parseAtLeast(11u)
+        val start = cursor
         skipWhitespace()
         val scopeStart: UInt
-        if (!peekable() || peek() != ',') {
-            val _ = diagnose("Expected `,` after pair first element", Span(cursor, cursor + 1u))
-            scopeStart = cursor
-        } else {
+
+        // h : e , e
+        if (peekable() && peek() == ',') {
             skip() // ,
             scopeStart = cursor
             skipWhitespace()
+            val second = parseAtLeast(10u)
+            val scopeEnd = cursor
+            val next = Concrete.Pair(
+                name = head,
+                first = first,
+                second = second,
+                scope = Span(scopeStart, scopeEnd),
+                span = Span(head.span.start, second.span.endExclusive),
+            )
+            return parseTail(minBp, next)
         }
-        val second = parseAtLeast(10u)
-        val scopeEnd = cursor
-        val next = Concrete.Pair(
-            name = head,
-            first = first,
-            second = second,
-            scope = Span(scopeStart, scopeEnd),
-            span = Span(head.span.start, second.span.endExclusive),
-        )
-        return parseTail(minBp, next)
+
+        // h : e → e
+        if (peekable() && peek() == '→') {
+            skip() // →
+            scopeStart = cursor
+            skipWhitespace()
+            val result = parseAtLeast(5u)
+            val scopeEnd = cursor
+            val next = Concrete.Fun(
+                name = head,
+                param = first,
+                result = result,
+                body = null,
+                scope = Span(scopeStart, scopeEnd),
+                span = Span(head.span.start, result.span.endExclusive),
+            )
+            return parseTail(minBp, next)
+        }
+
+        return diagnose("Expected `,` or `→`", Span(start - 1u, start))
     }
 
     // h , e

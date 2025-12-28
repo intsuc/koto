@@ -24,6 +24,8 @@ let func : int64 → int64 = fun(x) { x }
 let func3 : int64 → int64 → int64 = fun(x) { fun(y) { y } }
 let func3 : int64 → (int64 → int64) = fun(x) { fun(y) { y } }
 let func3 : (int64 → int64) → int64 = fun(f) { f(0) }
+let dfunc = a : type → a
+let dfunc3 = a : type → b : type → b
 
 # let id = fun(x) { x }
 let id = fun(x : int64) { x }
