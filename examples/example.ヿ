@@ -17,6 +17,9 @@ let pair3 : int64, int64, int64 = 1, 2, 3
 let pair3 : int64, (int64, int64) = 1, 2, 3
 let pair3 : (int64, int64), int64 = (1, 2), 3
 let d-pair : a : type, a = int64, 1
+let d-pair3 : a : type, int64, a = bool, 1, true
+let d-pair3 : a : type, b : type, a = bool, int64, true
+let d-pair3 : a : type, b : type, b = bool, int64, 1
 let d-pair4 : a : type, b : type, a, b = bool, int64, true, 1
 
 let func : int64 → int64 = x → x
