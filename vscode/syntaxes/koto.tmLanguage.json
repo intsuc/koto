@@ -9,7 +9,7 @@
       "name": "comment.line.koto"
     },
     {
-      "match": "\\b(?:let)\\b|[:=→,]",
+      "match": "\\b(?:let)\\b|[:=→,@]",
       "name": "keyword.koto"
     },
     {

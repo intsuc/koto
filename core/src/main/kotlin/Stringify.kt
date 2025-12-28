@@ -15,6 +15,7 @@ fun stringify(term: Abstract, minBp: UInt): String {
         is Abstract.Call -> "${stringify(term.func, 0u)}(${stringify(term.arg, 0u)})"
         is Abstract.Pair -> p(minBp, 10u, "${term.name?.let { "$it : " } ?: ""}${stringify(term.first, 11u)}, ${stringify(term.second, 10u)}")
         is Abstract.PairOf -> p(minBp, 10u, "${stringify(term.first, 11u)}, ${stringify(term.second, 10u)}")
+        is Abstract.Refine -> p(minBp, 15u, "${term.name?.let { "$it : " } ?: ""}${stringify(term.base, 15u)} @ ${stringify(term.property, 15u)}")
         is Abstract.Var -> term.text
         is Abstract.Err -> "error"
     }

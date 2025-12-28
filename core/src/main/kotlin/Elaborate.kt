@@ -64,6 +64,12 @@ sealed interface Abstract {
         val second: Abstract,
     ) : Abstract
 
+    data class Refine(
+        val name: String?,
+        val base: Abstract,
+        val property: Abstract,
+    ) : Abstract
+
     data class Var(
         val text: String,
         val index: Index,
@@ -118,6 +124,12 @@ sealed interface Value {
     data class PairOf(
         val first: Value,
         val second: Value,
+    ) : Value
+
+    data class Refine(
+        val name: String?,
+        val base: Value,
+        val property: Value,
     ) : Value
 
     data class Var(
@@ -206,6 +218,14 @@ private fun ElaborateState.eval(term: Abstract): Value {
             eval(term.second),
         )
 
+        is Abstract.Refine -> {
+            val base = eval(term.base)
+            when (val property = eval(term.property)) {
+                is Value.BoolOf if property.value -> base
+                else -> Value.Refine(term.name, base, property)
+            }
+        }
+
         is Abstract.Err -> Value.Err
     }
 }
@@ -246,6 +266,12 @@ private fun Level.quote(value: Value): Abstract {
             quote(value.second),
         )
 
+        is Value.Refine -> Abstract.Refine(
+            value.name,
+            quote(value.base),
+            quote(value.property),
+        )
+
         is Value.Var -> Abstract.Var(
             value.text,
             this - value.level - 1u,
@@ -276,6 +302,7 @@ private fun Level.conv(term1: Value, term2: Value): Boolean {
         is Value.Call if term2 is Value.Call -> conv(term1.func, term2.func) && conv(term1.arg, term2.arg)
         is Value.Pair if term2 is Value.Pair -> conv(term1.first, term2.first) && conv(term1.second, term2.second)
         is Value.PairOf if term2 is Value.PairOf -> conv(term1.first, term2.first) && conv(term1.second, term2.second)
+        is Value.Refine if term2 is Value.Refine -> conv(term1.base, term2.base) && conv(term1.property, term2.property)
         is Value.Var if term2 is Value.Var -> term1.level == term2.level
         is Value.Err -> true
         else if term2 == Value.Err -> true
@@ -423,6 +450,30 @@ private fun ElaborateState.synth(term: Concrete): Anno {
             )
         }
 
+        // e @ e  ⇒  type
+        // x : e @ e  ⇒  type
+        is Concrete.Refine -> {
+            val base = check(term.base, Value.Type)
+            val baseV = eval(base.term)
+            if (term.name != null) {
+                actualTypes.add(term.name.span to lazy { size.quote(baseV) })
+                scopes.add(term.scope to term.name.text)
+                entries.add(Entry(term.name.text, baseV))
+            }
+            val property = check(term.property, Value.Bool)
+            if (term.name != null) {
+                entries.removeAt(entries.lastIndex)
+            }
+            Anno(
+                Abstract.Refine(
+                    term.name?.text,
+                    base.term,
+                    property.term,
+                ),
+                Value.Type,
+            )
+        }
+
         is Concrete.Err -> Anno(Abstract.Err, Value.Err)
     }.also {
         actualTypes.add(term.span to lazy { size.quote(it.type) })
@@ -459,6 +510,7 @@ private fun ElaborateState.check(term: Concrete, expected: Value): Anno {
         is Concrete.Fun if expected is Value.Type -> {
             val param = check(term.param, Value.Type)
             if (term.name != null) {
+                actualTypes.add(term.name.span to lazy { size.quote(param.type) })
                 scopes.add(term.scope to term.name.text)
                 entries.add(Entry(term.name.text, eval(param.term)))
             }

@@ -26,6 +26,13 @@ let func3 : (int64 → int64) → int64 = f → f(0)
 let d-func = a : type → a
 let d-func3 = a : type → b : type → b
 
+let refine-type : type = int64 @ true
+let refine-type : type = x : bool @ x
+let refine-trivial : int64 @ true = 1
+let refine-compute : x : int64 @ (y : int64 → true)(x) = 1
+# let refine-compute-fail : x : int64 @ (y : int64 → false)(x) = 1
+# let refine-singleton : x : bool @ x = true
+
 # let id = x → x
 let id = x : int64 → x
 let id : int64 → int64 = x → x

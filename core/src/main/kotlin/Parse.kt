@@ -50,6 +50,16 @@ sealed interface Concrete {
         override val span: Span,
     ) : Concrete
 
+    // e @ e
+    // x : e @ e
+    data class Refine(
+        val name: Ident?,
+        val base: Concrete,
+        val property: Concrete,
+        val scope: Span,
+        override val span: Span,
+    ) : Concrete
+
     data class Err(
         val message: String,
         override val span: Span,
@@ -156,7 +166,7 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
 
     val (text, span) = parseWord()
     return when (text) {
-        // let x = e1 e2
+        // let x = e e
         "let" -> {
             skipWhitespace()
             val name = parseIdent()
@@ -226,11 +236,11 @@ private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete 
     }
 
     // h : e
-    if (head is Concrete.Ident && minBp <= 10u && peekable() && peek() == ':') {
+    if (head is Concrete.Ident && minBp <= 20u && peekable() && peek() == ':') {
         skipWhitespace()
         skip() // :
         skipWhitespace()
-        val first = parseAtLeast(11u)
+        val first = parseAtLeast(21u)
         val start = cursor
         skipWhitespace()
         val scopeStart: UInt
@@ -269,6 +279,23 @@ private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete 
             return parseTail(minBp, next)
         }
 
+        // h : e @ e
+        if (peekable() && peek() == '@') {
+            skip() // @
+            scopeStart = cursor
+            skipWhitespace()
+            val property = parseAtLeast(21u)
+            val scopeEnd = cursor
+            val next = Concrete.Refine(
+                name = head,
+                base = first,
+                property = property,
+                scope = Span(scopeStart, scopeEnd),
+                span = Span(head.span.start, property.span.endExclusive),
+            )
+            return parseTail(minBp, next)
+        }
+
         return diagnose("Expected `,` or `→`", Span(start - 1u, start))
     }
 
@@ -298,6 +325,21 @@ private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete 
             result = result,
             scope = Span.ZERO,
             span = Span(head.span.start, result.span.endExclusive),
+        )
+        return parseTail(minBp, next)
+    }
+
+    // h @ e
+    if (minBp <= 20u && peekable() && peek() == '@') {
+        skip() // @
+        skipWhitespace()
+        val property = parseAtLeast(21u)
+        val next = Concrete.Refine(
+            name = null,
+            base = head,
+            property = property,
+            scope = Span.ZERO,
+            span = Span(head.span.start, property.span.endExclusive),
         )
         return parseTail(minBp, next)
     }
