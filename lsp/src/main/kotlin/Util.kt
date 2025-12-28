@@ -1,6 +1,8 @@
 package koto.lsp
 
+import koto.core.util.Severity
 import koto.core.util.Span
+import org.eclipse.lsp4j.DiagnosticSeverity
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.Range
 
@@ -21,4 +23,11 @@ fun Span.toRange(lineStarts: List<UInt>): Range {
 fun Position.toOffset(lineStarts: List<UInt>): UInt {
     val lineStart = lineStarts[line]
     return lineStart + character.toUInt()
+}
+
+fun Severity.toLsp(): DiagnosticSeverity {
+    return when (this) {
+        Severity.ERROR -> DiagnosticSeverity.Error
+        Severity.WARNING -> DiagnosticSeverity.Warning
+    }
 }

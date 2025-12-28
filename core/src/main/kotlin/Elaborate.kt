@@ -4,6 +4,7 @@ import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import koto.core.util.Diagnostic
 import koto.core.util.IntervalTree
+import koto.core.util.Severity
 import koto.core.util.Span
 
 /** de Bruijn index */
@@ -165,8 +166,13 @@ private class ElaborateState {
     val size: Level get() = entries.size.toUInt()
 }
 
-private fun ElaborateState.diagnose(message: String, span: Span, expected: Value = Value.Err): Anno {
-    diagnostics.add(Diagnostic(message, span))
+private fun ElaborateState.diagnose(
+    message: String,
+    span: Span,
+    severity: Severity,
+    expected: Value = Value.Err,
+): Anno {
+    diagnostics.add(Diagnostic(message, span, severity))
     return Anno(Abstract.Err, expected)
 }
 
@@ -198,7 +204,7 @@ private fun PersistentList<Lazy<Value>>.eval(term: Abstract): Value {
             val func = eval(term.func)
             val arg = eval(term.arg)
             when (func) {
-                is Value.FunOf -> func.result(arg)
+                // is Value.FunOf -> func.result(arg)
                 else -> Value.Call(func, arg)
             }
         }
@@ -216,7 +222,7 @@ private fun PersistentList<Lazy<Value>>.eval(term: Abstract): Value {
 
         is Abstract.Refine -> {
             val base = eval(term.base)
-            when (val property = eval(term.property)) {
+            when (val property = add(lazyOf(Value.Var(term.name ?: "$$this", size.toUInt()))).eval(term.property)) {
                 is Value.BoolOf if property.value -> base
                 else -> Value.Refine(term.name, base, property)
             }
@@ -277,32 +283,62 @@ private fun Level.quote(value: Value): Abstract {
     }
 }
 
-private fun Level.conv(term1: Value, term2: Value): Boolean {
+private enum class ConvResult {
+    YES,
+    NO,
+    UNKNOWN,
+}
+
+private fun Boolean.toConvResult(): ConvResult {
+    return if (this) ConvResult.YES else ConvResult.NO
+}
+
+private inline infix fun ConvResult.then(other: () -> ConvResult): ConvResult {
+    return when (this) {
+        ConvResult.YES -> other()
+        ConvResult.NO -> ConvResult.NO
+        ConvResult.UNKNOWN -> ConvResult.UNKNOWN
+    }
+}
+
+private fun Level.conv(term1: Value, term2: Value): ConvResult {
     return when (term1) {
-        is Value.Type if term2 is Value.Type -> true
-        is Value.Bool if term2 is Value.Bool -> true
-        is Value.BoolOf if term2 is Value.BoolOf -> term1.value == term2.value
-        is Value.Int64 if term2 is Value.Int64 -> true
-        is Value.Int64Of if term2 is Value.Int64Of -> term1.value == term2.value
-        is Value.Float64 if term2 is Value.Float64 -> true
-        is Value.Float64Of if term2 is Value.Float64Of -> term1.value == term2.value
-        is Value.Fun if term2 is Value.Fun -> {
-            conv(term1.param, term2.param) &&
-                    Value.Var("$$this", this).let { x -> (this + 1u).conv(term1.result(x), term2.result(x)) }
+        is Value.Type if term2 is Value.Type -> ConvResult.YES
+        is Value.Bool if term2 is Value.Bool -> ConvResult.YES
+        is Value.BoolOf if term2 is Value.BoolOf -> (term1.value == term2.value).toConvResult()
+        is Value.Int64 if term2 is Value.Int64 -> ConvResult.YES
+        is Value.Int64Of if term2 is Value.Int64Of -> (term1.value == term2.value).toConvResult()
+        is Value.Float64 if term2 is Value.Float64 -> ConvResult.YES
+        is Value.Float64Of if term2 is Value.Float64Of -> (term1.value == term2.value).toConvResult()
+        is Value.Fun if term2 is Value.Fun -> conv(term1.param, term2.param) then {
+            Value.Var("$$this", this).let { x ->
+                (this + 1u).conv(term1.result(x), term2.result(x))
+            }
         }
 
-        is Value.FunOf if term2 is Value.FunOf -> {
-            Value.Var("$$this", this).let { x -> (this + 1u).conv(term1.result(x), term2.result(x)) }
+        is Value.FunOf if term2 is Value.FunOf -> Value.Var("$$this", this).let { x ->
+            (this + 1u).conv(term1.result(x), term2.result(x))
         }
 
-        is Value.Call if term2 is Value.Call -> conv(term1.func, term2.func) && conv(term1.arg, term2.arg)
-        is Value.Pair if term2 is Value.Pair -> conv(term1.first, term2.first) && conv(term1.second, term2.second)
-        is Value.PairOf if term2 is Value.PairOf -> conv(term1.first, term2.first) && conv(term1.second, term2.second)
-        is Value.Refine if term2 is Value.Refine -> conv(term1.base, term2.base) && conv(term1.property, term2.property)
-        is Value.Var if term2 is Value.Var -> term1.level == term2.level
-        is Value.Err -> true
-        else if term2 == Value.Err -> true
-        else -> false
+        is Value.Call if term2 is Value.Call -> conv(term1.func, term2.func) then { conv(term1.arg, term2.arg) }
+        is Value.Pair if term2 is Value.Pair -> conv(term1.first, term2.first) then { conv(term1.second, term2.second) }
+        is Value.PairOf if term2 is Value.PairOf -> conv(term1.first, term2.first) then { conv(term1.second, term2.second) }
+        is Value.Refine if term2 is Value.Refine -> conv(term1.base, term2.base) then {
+            when (conv(term1.property, term2.property)) {
+                ConvResult.YES -> ConvResult.YES
+                else -> ConvResult.UNKNOWN
+            }
+        }
+
+        is Value.Var if term2 is Value.Var -> (term1.level == term2.level).toConvResult()
+        is Value.Err -> ConvResult.YES
+        else if term2 == Value.Err -> ConvResult.YES
+        else if term2 is Value.Refine -> when (conv(term1, term2.base)) {
+            ConvResult.YES -> ConvResult.UNKNOWN
+            else -> ConvResult.NO
+        }
+
+        else -> ConvResult.NO
     }
 }
 
@@ -347,7 +383,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
                     Anno(Abstract.Int64Of(value), Value.Int64)
                 } ?: term.text.toDoubleOrNull()?.let { value ->
                     Anno(Abstract.Float64Of(value), Value.Float64)
-                } ?: diagnose("Unknown identifier `${term.text}`", term.span)
+                } ?: diagnose("Unknown identifier `${term.text}`", term.span, Severity.ERROR)
 
                 else -> {
                     val index = (entries.lastIndex - level)
@@ -403,7 +439,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
         // e → e  ⇒  v
         is Concrete.Fun -> {
             // TODO: infer parameter type by unification?
-            diagnose("Function parameter type annotation is required", term.span)
+            diagnose("Function parameter type annotation is required", term.span, Severity.ERROR)
         }
 
         // e ( e )  ⇒  v
@@ -425,7 +461,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
                 else -> {
                     val _ = synth(term.arg)
                     val actualType = stringify(size.quote(funcType), 0u)
-                    diagnose("Expected function type, but found `$actualType`", term.func.span)
+                    diagnose("Expected function type, but found `$actualType`", term.func.span, Severity.ERROR)
                 }
             }
         }
@@ -591,12 +627,22 @@ private fun ElaborateState.check(term: Concrete, expected: Value): Anno {
         // e  ⇐  v
         else -> {
             val synthesized = synth(term)
-            if (size.conv(synthesized.type, expected)) {
-                Anno(synthesized.term, expected)
-            } else {
-                val expectedType = stringify(size.quote(expected), 0u)
-                val actualType = stringify(size.quote(synthesized.type), 0u)
-                diagnose("Expected `${expectedType}` but found `${actualType}`", term.span, expected)
+            when (size.conv(synthesized.type, expected)) {
+                ConvResult.YES -> {
+                    Anno(synthesized.term, expected)
+                }
+
+                ConvResult.NO -> {
+                    val expectedType = stringify(size.quote(expected), 0u)
+                    val actualType = stringify(size.quote(synthesized.type), 0u)
+                    diagnose("Expected `${expectedType}` but found `${actualType}`", term.span, Severity.ERROR, expected)
+                }
+
+                ConvResult.UNKNOWN -> {
+                    val expectedType = stringify(size.quote(expected), 0u)
+                    val actualType = stringify(size.quote(synthesized.type), 0u)
+                    diagnose("Expected `${expectedType}` but found `${actualType}`", term.span, Severity.WARNING, expected)
+                }
             }
         }
     }.also {

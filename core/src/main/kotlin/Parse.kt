@@ -1,6 +1,7 @@
 package koto.core
 
 import koto.core.util.Diagnostic
+import koto.core.util.Severity
 import koto.core.util.Span
 
 sealed interface Concrete {
@@ -123,7 +124,7 @@ private fun ParseState.skipWhitespace() {
 }
 
 private fun ParseState.diagnose(message: String, span: Span): Concrete {
-    diagnostics.add(Diagnostic(message, span))
+    diagnostics.add(Diagnostic(message, span, Severity.ERROR))
     return Concrete.Err(message, span)
 }
 

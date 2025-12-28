@@ -47,7 +47,7 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
         val diagnostics = parseResult.diagnostics + elaborateResult.diagnostics
         return completedFuture(DocumentDiagnosticReport(RelatedFullDocumentDiagnosticReport(diagnostics.map { diagnostic ->
             val range = diagnostic.span.toRange(parseResult.lineStarts)
-            Diagnostic(range, diagnostic.message)
+            Diagnostic(range, diagnostic.message, diagnostic.severity.toLsp(), "ヿ")
         })))
     }
 
