@@ -5,5 +5,6 @@ kotlin = "2.3.0"
 kotlinGradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 clikt = { group = "com.github.ajalt.clikt", name = "clikt", version = "5.0.3" }
 lsp4j = { group = "org.eclipse.lsp4j", name = "org.eclipse.lsp4j", version = "0.24.0" }
+kotlinxCollectionsImmutable = { group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable", version = "0.4.0" }
 
 [plugins]

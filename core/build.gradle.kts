@@ -3,5 +3,6 @@ plugins {
 }
 
 dependencies {
+    implementation(libs.kotlinxCollectionsImmutable)
     testImplementation(kotlin("test"))
 }

@@ -37,11 +37,11 @@ let refine-compute : x : int64 @ (y : int64 → true)(x) = 1
 let id = x : int64 → x
 let id : int64 → int64 = x → x
 let id : int64 → int64 = x : int64 → x
+let - : int64 = id(1)
 
 let d-id  = a-t : type → a : a-t → a
-
-let - = id(1)
-let - = d-id(int64)
-let - = d-id(int64)(3)
+let - : int64 → int64 = d-id(int64)
+let - : int64 = d-id(int64)(3)
+let - : bool = d-id(bool)(true)
 
 type
