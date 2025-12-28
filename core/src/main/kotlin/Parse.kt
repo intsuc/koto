@@ -21,7 +21,7 @@ sealed interface Concrete {
     ) : Concrete
 
     data class Fun(
-        val name: Ident,
+        val name: Ident?,
         val param: Concrete?,
         val result: Concrete?,
         val body: Concrete?,
@@ -41,8 +41,10 @@ sealed interface Concrete {
     ) : Concrete
 
     data class Pair(
+        val name: Ident?,
         val first: Concrete,
         val second: Concrete,
+        val scope: Span,
         override val span: Span,
     ) : Concrete
 
@@ -270,7 +272,9 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
 }
 
 private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete {
-    // h( e )
+    skipWhitespace()
+
+    // h ( e )
     if (peekable() && peek() == '(') {
         skip() // (
         skipWhitespace()
@@ -283,25 +287,71 @@ private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete 
             skip() // )
         }
         val end = cursor
-        val call = Concrete.Call(
+        val next = Concrete.Call(
             func = head,
             arg = argument,
             span = Span(head.span.start, end),
         )
-        return parseTail(minBp, call)
+        return parseTail(minBp, next)
     }
 
-    // h, e
+    // h : e , e
+    if (head is Concrete.Ident && minBp <= 10u && peekable() && peek() == ':') {
+        skipWhitespace()
+        skip() // :
+        skipWhitespace()
+        val first = parseAtLeast(11u)
+        skipWhitespace()
+        val scopeStart: UInt
+        if (!peekable() || peek() != ',') {
+            val _ = diagnose("Expected `,` after pair first element", Span(cursor, cursor + 1u))
+            scopeStart = cursor
+        } else {
+            skip() // ,
+            scopeStart = cursor
+            skipWhitespace()
+        }
+        val second = parseAtLeast(10u)
+        val scopeEnd = cursor
+        val next = Concrete.Pair(
+            name = head,
+            first = first,
+            second = second,
+            scope = Span(scopeStart, scopeEnd),
+            span = Span(head.span.start, second.span.endExclusive),
+        )
+        return parseTail(minBp, next)
+    }
+
+    // h , e
     if (minBp <= 10u && peekable() && peek() == ',') {
         skip() // ,
         skipWhitespace()
         val second = parseAtLeast(10u)
-        val pair = Concrete.Pair(
+        val next = Concrete.Pair(
+            name = null,
             first = head,
             second = second,
+            scope = Span.ZERO,
             span = Span(head.span.start, second.span.endExclusive),
         )
-        return parseTail(minBp, pair)
+        return parseTail(minBp, next)
+    }
+
+    // h → e
+    if (minBp <= 5u && peekable() && peek() == '→') {
+        skip() // →
+        skipWhitespace()
+        val result = parseAtLeast(5u)
+        val next = Concrete.Fun(
+            name = null,
+            param = head,
+            result = result,
+            body = null,
+            scope = Span.ZERO,
+            span = Span(head.span.start, result.span.endExclusive),
+        )
+        return parseTail(minBp, next)
     }
 
     return head
