@@ -39,6 +39,9 @@ let pair3 : int64, int64, int64 = 1, 2, 3
 let pair3 : int64, (int64, int64) = 1, 2, 3
 let pair3 : (int64, int64), int64 = (1, 2), 3
 let d-pair : a : type, a = int64, 1
+let d-pair3 : a : type, int64, a = bool, 1, true
+let d-pair3 : a : type, b : type, a = bool, int64, true
+let d-pair3 : a : type, b : type, b = bool, int64, 1
 let d-pair4 : a : type, b : type, a, b = bool, int64, true, 1
 
 let func : int64 → int64 = x → x
@@ -51,9 +54,18 @@ let d-func3 = a : type → b : type → b
 let refine-type : type = int64 @ true
 let refine-type : type = x : bool @ x
 let refine-trivial : int64 @ true = 1
-let refine-compute : x : int64 @ (y : int64 → true)(x) = 1
-# let refine-compute-fail : x : int64 @ (y : int64 → false)(x) = 1
-# let refine-singleton : x : bool @ x = true
+let refine-compute-success : x : int64 @ (y : int64 → true)(x) = 2
+let refine-compute-failure : x : int64 @ (y : int64 → false)(x) = 3
+let refine-singleton : x : bool @ x = true
+
+let ite = if true then 1 else 2
+let ite : if true then int64 else bool = 1
+let ite : if false then int64 else bool = true
+
+let not = x : bool → if x then false else true
+let and = x : bool → y : bool → if x then y else false
+let or  = x : bool → y : bool → if x then true else y
+let xor = x : bool → y : bool → if x then if y then false else true else y
 
 # let id = x → x
 let id = x : int64 → x
@@ -73,8 +85,8 @@ type
 
 ### Tier 1
 
-- [ ] WebAssembly Browser WebGPU
 - [ ] x86-64 Windows Vulkan
+- [ ] WebAssembly Browser WebGPU
 
 ### Tier 2
 
@@ -94,6 +106,8 @@ type
     1. During editing (LSP requests): perform the computation required for the response.
     2. Before execution: perform runtime checks if necessary.
     3. During execution: run the code.
+- Effects as capabilities
+    - Capture modality: `let x = 1 [x](y : int64 → x)`
 - Uniqueness / linearity types.
     - Or more generally, fractional / quantitative types.
 - Ordered types.

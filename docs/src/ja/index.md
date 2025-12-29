@@ -39,6 +39,9 @@ let pair3 : int64, int64, int64 = 1, 2, 3
 let pair3 : int64, (int64, int64) = 1, 2, 3
 let pair3 : (int64, int64), int64 = (1, 2), 3
 let d-pair : a : type, a = int64, 1
+let d-pair3 : a : type, int64, a = bool, 1, true
+let d-pair3 : a : type, b : type, a = bool, int64, true
+let d-pair3 : a : type, b : type, b = bool, int64, 1
 let d-pair4 : a : type, b : type, a, b = bool, int64, true, 1
 
 let func : int64 → int64 = x → x
@@ -51,9 +54,18 @@ let d-func3 = a : type → b : type → b
 let refine-type : type = int64 @ true
 let refine-type : type = x : bool @ x
 let refine-trivial : int64 @ true = 1
-let refine-compute : x : int64 @ (y : int64 → true)(x) = 1
-# let refine-compute-fail : x : int64 @ (y : int64 → false)(x) = 1
-# let refine-singleton : x : bool @ x = true
+let refine-compute-success : x : int64 @ (y : int64 → true)(x) = 2
+let refine-compute-failure : x : int64 @ (y : int64 → false)(x) = 3
+let refine-singleton : x : bool @ x = true
+
+let ite = if true then 1 else 2
+let ite : if true then int64 else bool = 1
+let ite : if false then int64 else bool = true
+
+let not = x : bool → if x then false else true
+let and = x : bool → y : bool → if x then y else false
+let or  = x : bool → y : bool → if x then true else y
+let xor = x : bool → y : bool → if x then if y then false else true else y
 
 # let id = x → x
 let id = x : int64 → x
@@ -73,8 +85,8 @@ type
 
 ### ティア1
 
-- [ ] WebAssembly Browser WebGPU
 - [ ] x86-64 Windows Vulkan
+- [ ] WebAssembly Browser WebGPU
 
 ### ティア2
 
@@ -94,6 +106,8 @@ type
     1. 編集（LSPリクエスト）時: レスポンスに必要な計算を行う。
     2. 実行前: 必要であれば実行時検査を行う。
     3. 実行時: コードを実行する。
+- 能力としての効果
+    - 捕獲モダリティ: `let x = 1 [x](y : int64 → x)`
 - 一意（uniqueness） / 線形（linearity）型。
     - あるいはより一般に、分割（fractional） / 量的（quantitative）型。
 - 順序（ordered）型。
