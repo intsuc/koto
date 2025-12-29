@@ -476,7 +476,7 @@ private fun ElaborateState.synth(term: Concrete): Anno {
                     result.term,
                 ),
                 Value.Fun(
-                    term.name.text,
+                    null,
                     paramV,
                 ) { arg -> values.add(lazyOf(arg)).eval(resultType) },
             )
