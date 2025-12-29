@@ -61,6 +61,14 @@ sealed interface Concrete {
         override val span: Span,
     ) : Concrete
 
+    // if e then e else e
+    data class If(
+        val cond: Concrete,
+        val thenBranch: Concrete,
+        val elseBranch: Concrete,
+        override val span: Span,
+    ) : Concrete
+
     data class Err(
         val message: String,
         override val span: Span,
@@ -198,6 +206,34 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
                 init = init,
                 body = body,
                 scope = Span(scopeStart, scopeEnd),
+                span = Span(span.start, cursor),
+            )
+        }
+
+        // if e then e else e
+        "if" -> {
+            skipWhitespace()
+            val cond = parseAtLeast(0u)
+            skipWhitespace()
+            val thenStart = cursor
+            val thenTextSpan = parseWord()
+            if (thenTextSpan.first != "then") {
+                val _ = diagnose("Expected `then` after `if` condition", Span(thenStart, thenStart + 1u))
+            }
+            skipWhitespace()
+            val thenBranch = parseAtLeast(0u)
+            skipWhitespace()
+            val elseStart = cursor
+            val elseTextSpan = parseWord()
+            if (elseTextSpan.first != "else") {
+                val _ = diagnose("Expected `else` after `then` branch", Span(elseStart, elseStart + 1u))
+            }
+            skipWhitespace()
+            val elseBranch = parseAtLeast(0u)
+            Concrete.If(
+                cond = cond,
+                thenBranch = thenBranch,
+                elseBranch = elseBranch,
                 span = Span(span.start, cursor),
             )
         }

@@ -5,6 +5,7 @@ fun stringify(term: Abstract, minBp: UInt): String {
         is Abstract.Type -> "type"
         is Abstract.Bool -> "bool"
         is Abstract.BoolOf -> if (term.value) "true" else "false"
+        is Abstract.If -> "if ${stringify(term.cond, 0u)} then ${stringify(term.thenBranch, 0u)} else ${stringify(term.elseBranch, 0u)}"
         is Abstract.Int64 -> "int64"
         is Abstract.Int64Of -> "${term.value}"
         is Abstract.Float64 -> "float64"

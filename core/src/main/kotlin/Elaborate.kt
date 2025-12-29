@@ -22,6 +22,12 @@ sealed interface Abstract {
         val value: Boolean,
     ) : Abstract
 
+    data class If(
+        val cond: Abstract,
+        val thenBranch: Abstract,
+        val elseBranch: Abstract,
+    ) : Abstract
+
     data object Int64 : Abstract
 
     data class Int64Of(
@@ -88,6 +94,12 @@ sealed interface Value {
 
     data class BoolOf(
         val value: Boolean,
+    ) : Value
+
+    data class If(
+        val cond: Value,
+        val thenBranch: Value,
+        val elseBranch: Value,
     ) : Value
 
     data object Int64 : Value
@@ -181,6 +193,22 @@ private fun PersistentList<Lazy<Value>>.eval(term: Abstract): Value {
         is Abstract.Type -> Value.Type
         is Abstract.Bool -> Value.Bool
         is Abstract.BoolOf -> Value.BoolOf(term.value)
+        is Abstract.If -> {
+            when (val cond = eval(term.cond)) {
+                is Value.BoolOf -> if (cond.value) {
+                    eval(term.thenBranch)
+                } else {
+                    eval(term.elseBranch)
+                }
+
+                else -> Value.If(
+                    cond,
+                    eval(term.thenBranch),
+                    eval(term.elseBranch),
+                )
+            }
+        }
+
         is Abstract.Int64 -> Value.Int64
         is Abstract.Int64Of -> Value.Int64Of(term.value)
         is Abstract.Float64 -> Value.Float64
@@ -236,6 +264,12 @@ private fun Level.quote(value: Value): Abstract {
         is Value.Type -> Abstract.Type
         is Value.Bool -> Abstract.Bool
         is Value.BoolOf -> Abstract.BoolOf(value.value)
+        is Value.If -> Abstract.If(
+            quote(value.cond),
+            quote(value.thenBranch),
+            quote(value.elseBranch),
+        )
+
         is Value.Int64 -> Abstract.Int64
         is Value.Int64Of -> Abstract.Int64Of(value.value)
         is Value.Float64 -> Abstract.Float64
@@ -305,6 +339,12 @@ private fun Level.conv(term1: Value, term2: Value): ConvResult {
         is Value.Type if term2 is Value.Type -> ConvResult.YES
         is Value.Bool if term2 is Value.Bool -> ConvResult.YES
         is Value.BoolOf if term2 is Value.BoolOf -> (term1.value == term2.value).toConvResult()
+        is Value.If if term2 is Value.If -> conv(term1.cond, term2.cond) then {
+            conv(term1.thenBranch, term2.thenBranch) then {
+                conv(term1.elseBranch, term2.elseBranch)
+            }
+        }
+
         is Value.Int64 if term2 is Value.Int64 -> ConvResult.YES
         is Value.Int64Of if term2 is Value.Int64Of -> (term1.value == term2.value).toConvResult()
         is Value.Float64 if term2 is Value.Float64 -> ConvResult.YES
@@ -523,6 +563,21 @@ private fun ElaborateState.synth(term: Concrete): Anno {
             )
         }
 
+        // if e then e else e  ⇒  v
+        is Concrete.If -> {
+            val cond = check(term.cond, Value.Bool)
+            val thenBranch = synth(term.thenBranch)
+            val elseBranch = check(term.elseBranch, thenBranch.type)
+            Anno(
+                Abstract.If(
+                    cond.term,
+                    thenBranch.term,
+                    elseBranch.term,
+                ),
+                thenBranch.type,
+            )
+        }
+
         is Concrete.Err -> Anno(Abstract.Err, Value.Err)
     }.also {
         actualTypes.add(term.span to lazy { size.quote(it.type) })
@@ -614,6 +669,21 @@ private fun ElaborateState.check(term: Concrete, expected: Value): Anno {
                 Abstract.PairOf(
                     first.term,
                     second.term,
+                ),
+                expected,
+            )
+        }
+
+        // if e then e else e  ⇐  v
+        is Concrete.If -> {
+            val cond = check(term.cond, Value.Bool)
+            val thenBranch = check(term.thenBranch, expected)
+            val elseBranch = check(term.elseBranch, expected)
+            Anno(
+                Abstract.If(
+                    cond.term,
+                    thenBranch.term,
+                    elseBranch.term,
                 ),
                 expected,
             )
