@@ -1,24 +1,75 @@
 package koto.core
 
-fun stringify(term: Abstract, minBp: UInt): String {
+fun stringify(term: Term, minBp: UInt): String {
     return when (term) {
-        is Abstract.Type -> "type"
-        is Abstract.Bool -> "bool"
-        is Abstract.BoolOf -> if (term.value) "true" else "false"
-        is Abstract.If -> "if ${stringify(term.cond, 0u)} then ${stringify(term.thenBranch, 0u)} else ${stringify(term.elseBranch, 0u)}"
-        is Abstract.Int64 -> "int64"
-        is Abstract.Int64Of -> "${term.value}"
-        is Abstract.Float64 -> "float64"
-        is Abstract.Float64Of -> "${term.value}"
-        is Abstract.Let -> "let ${term.name} = ${stringify(term.init, 0u)}; ${stringify(term.body, 0u)}"
-        is Abstract.Fun -> p(minBp, 5u, "${term.name?.let { "$it : " } ?: ""}${stringify(term.param, 6u)} → ${stringify(term.result, 5u)}")
-        is Abstract.FunOf -> p(minBp, 5u, "${term.name} → ${stringify(term.result, 5u)}")
-        is Abstract.Call -> "${stringify(term.func, 30u)}(${stringify(term.arg, 0u)})"
-        is Abstract.Pair -> p(minBp, 10u, "${term.name?.let { "$it : " } ?: ""}${stringify(term.first, 11u)}, ${stringify(term.second, 10u)}")
-        is Abstract.PairOf -> p(minBp, 10u, "${stringify(term.first, 11u)}, ${stringify(term.second, 10u)}")
-        is Abstract.Refine -> p(minBp, 15u, "${term.name?.let { "$it : " } ?: ""}${stringify(term.base, 15u)} @ ${stringify(term.property, 15u)}")
-        is Abstract.Var -> term.text
-        is Abstract.Err -> "error"
+        is Term.Type -> "type"
+        is Term.Bool -> "bool"
+        is Term.BoolOf -> if (term.value) "true" else "false"
+        is Term.If -> {
+            val cond = stringify(term.cond, 0u)
+            val thenBranch = stringify(term.thenBranch, 0u)
+            val elseBranch = stringify(term.elseBranch, 0u)
+            "if $cond then $thenBranch else $elseBranch"
+        }
+
+        is Term.Int64 -> "int64"
+        is Term.Int64Of -> "${term.value}"
+        is Term.Float64 -> "float64"
+        is Term.Float64Of -> "${term.value}"
+        is Term.Let -> {
+            val binder = stringifyPattern(term.binder, 0u)
+            val init = stringify(term.init, 0u)
+            val body = stringify(term.body, 0u)
+            "let $binder = $init $body"
+        }
+
+        is Term.Fun -> {
+            val binder = stringifyPattern(term.binder, 0u)
+            val param = stringify(term.param, 6u)
+            val result = stringify(term.result, 5u)
+            p(minBp, 5u, "$binder : $param → $result")
+        }
+
+        is Term.FunOf -> {
+            val binder = stringifyPattern(term.binder, 0u)
+            val result = stringify(term.result, 5u)
+            p(minBp, 5u, "$binder → $result")
+        }
+
+        is Term.Call -> {
+            val func = stringify(term.func, 30u)
+            val arg = stringify(term.arg, 0u)
+            "$func($arg)"
+        }
+
+        is Term.Pair -> {
+            val binder = stringifyPattern(term.binder, 0u)
+            val first = stringify(term.first, 11u)
+            val second = stringify(term.second, 10u)
+            p(minBp, 10u, "$binder : $first, $second")
+        }
+
+        is Term.PairOf -> {
+            val first = stringify(term.first, 11u)
+            val second = stringify(term.second, 10u)
+            p(minBp, 10u, "$first, $second")
+        }
+
+        is Term.Refine -> {
+            val binder = stringifyPattern(term.binder, 0u)
+            val base = stringify(term.base, 15u)
+            val property = stringify(term.property, 15u)
+            p(minBp, 15u, "$binder : $base @ $property")
+        }
+
+        is Term.Var -> term.text
+        is Term.Err -> "error"
+    }
+}
+
+private fun stringifyPattern(pattern: Pattern, minBp: UInt): String {
+    return when (pattern) {
+        is Pattern.Var -> pattern.text
     }
 }
 
