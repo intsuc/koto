@@ -70,6 +70,7 @@ fun stringify(term: Term, minBp: UInt): String {
 private fun stringifyPattern(pattern: Pattern, minBp: UInt): String {
     return when (pattern) {
         is Pattern.Var -> pattern.text
+        is Pattern.Err -> "error"
     }
 }
 

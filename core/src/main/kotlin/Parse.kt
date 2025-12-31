@@ -147,16 +147,6 @@ private fun ParseState.parseWord(): Pair<String, Span> {
     return identText to Span(start, cursor)
 }
 
-private fun ParseState.parseIdent(): Concrete.Ident {
-    val start = cursor
-    skipWhile { it.isIdent() }
-    if (start == cursor) {
-        val _ = diagnoseTerm("Expected identifier", Span(start, cursor))
-    }
-    val identText = text.substring(start.toInt(), cursor.toInt())
-    return Concrete.Ident(identText, Span(start, cursor))
-}
-
 private fun ParseState.parseHead(minBp: UInt): Concrete {
     if (peekable() && peek() == '(') {
         skip() // (
@@ -276,10 +266,10 @@ private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete 
     }
 
     // h , e
-    if (minBp <= 10u && peekable() && peek() == ',') {
+    if (minBp <= 100u && peekable() && peek() == ',') {
         skip() // ,
         skipWhitespace()
-        val second = parseAtLeast(10u)
+        val second = parseAtLeast(100u)
         val next = Concrete.Pair(
             first = head,
             second = second,
@@ -290,10 +280,10 @@ private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete 
     }
 
     // h → e
-    if (minBp <= 5u && peekable() && peek() == '→') {
+    if (minBp <= 50u && peekable() && peek() == '→') {
         skip() // →
         skipWhitespace()
-        val result = parseAtLeast(5u)
+        val result = parseAtLeast(50u)
         val next = Concrete.Fun(
             param = head,
             result = result,
@@ -304,10 +294,10 @@ private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete 
     }
 
     // h @ e
-    if (minBp <= 20u && peekable() && peek() == '@') {
+    if (minBp <= 200u && peekable() && peek() == '@') {
         skip() // @
         skipWhitespace()
-        val property = parseAtLeast(21u)
+        val property = parseAtLeast(201u)
         val next = Concrete.Refine(
             base = head,
             property = property,

@@ -11,48 +11,47 @@ let -pi = -3.14159
 let pi : float64 = 3.14159
 
 let pair = 1, 2
-let pair : int64, int64 = 1, 2
+let pair : (-:int64), int64 = 1, 2
 let pair3 = 1, 2, 3
-let pair3 : int64, int64, int64 = 1, 2, 3
-let pair3 : int64, (int64, int64) = 1, 2, 3
-let pair3 : (int64, int64), int64 = (1, 2), 3
-let d-pair : a : type, a = int64, 1
-let d-pair3 : a : type, int64, a = bool, 1, true
-let d-pair3 : a : type, b : type, a = bool, int64, true
-let d-pair3 : a : type, b : type, b = bool, int64, 1
-let d-pair4 : a : type, b : type, a, b = bool, int64, true, 1
+let pair3 : (-:int64), (-:int64), int64 = 1, 2, 3
+let pair3 : (-:int64), ((-:int64), int64) = 1, 2, 3
+let pair3 : (-:(-:int64), int64), int64 = (1, 2), 3
+let d-pair : (a : type), a = int64, 1
+let d-pair3 : (a : type), (-:int64), a = bool, 1, true
+let d-pair3 : (a : type), (b : type), a = bool, int64, true
+let d-pair3 : (a : type), (b : type), b = bool, int64, 1
+let d-pair4 : (a : type), (b : type), (-:a), b = bool, int64, true, 1
+let func : (-:int64) → int64 = (x : int64) → x
+let func3 : (-:int64) → (-:int64) → int64 = x → y → y
+let func3 : (-:int64) → ((-:int64) → int64) = x → y → y
+let func3 : (-:(-:int64) → int64) → int64 = f → f(0)
+let d-func = (a : type) → a
+let d-func3 = (a : type) → (b : type) → b
 
-let func : int64 → int64 = x → x
-let func3 : int64 → int64 → int64 = x → y → y
-let func3 : int64 → (int64 → int64) = x → y → y
-let func3 : (int64 → int64) → int64 = f → f(0)
-let d-func = a : type → a
-let d-func3 = a : type → b : type → b
-
-let refine-type : type = int64 @ true
-let refine-type : type = x : bool @ x
-let refine-trivial : int64 @ true = 1
-let refine-compute-success : x : int64 @ (y : int64 → true)(x) = 2
-let refine-compute-failure : x : int64 @ (y : int64 → false)(x) = 3
-let refine-singleton : x : bool @ x = true
+let refine-type : type = (-:int64) @ true
+let refine-type : type = (x : bool) @ x
+let refine-trivial : (-:int64) @ true = 1
+let refine-compute-success : (x : int64) @ ((y : int64) → true)(x) = 2
+let refine-compute-failure : (x : int64) @ ((y : int64) → false)(x) = 3
+let refine-singleton : (x : bool) @ x = true
 
 let ite = if true then 1 else 2
 let ite : if true then int64 else bool = 1
 let ite : if false then int64 else bool = true
 
-let not = x : bool → if x then false else true
-let and = x : bool → y : bool → if x then y else false
-let or  = x : bool → y : bool → if x then true else y
-let xor = x : bool → y : bool → if x then if y then false else true else y
+let not = (x : bool) → if x then false else true
+let and = (x : bool) → (y : bool) → if x then y else false
+let or  = (x : bool) → (y : bool) → if x then true else y
+let xor = (x : bool) → (y : bool) → if x then if y then false else true else y
 
 # let id = x → x
-let id = x : int64 → x
-let id : int64 → int64 = x → x
-let id : int64 → int64 = x : int64 → x
+let id = (x : int64) → x
+let id : (-:int64) → int64 = x → x
+let id : (-:int64) → int64 = (x : int64) → x
 let - : int64 = id(1)
 
-let d-id  = a-t : type → a : a-t → a
-let - : int64 → int64 = d-id(int64)
+let d-id : (a-t : type) → (a : a-t) → a-t = (a-t : type) → (a : a-t) → a
+let - : (-:int64) → int64 = d-id(int64)
 let - : int64 = d-id(int64)(3)
 let - : bool = d-id(bool)(true)
 

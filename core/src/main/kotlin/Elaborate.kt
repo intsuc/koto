@@ -6,6 +6,9 @@ import koto.core.util.Diagnostic
 import koto.core.util.IntervalTree
 import koto.core.util.Severity
 import koto.core.util.Span
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind
+import kotlin.contracts.contract
 
 /** de Bruijn index */
 typealias Index = UInt
@@ -388,7 +391,11 @@ private data class Anno<out T>(
     val type: Value,
 )
 
+@OptIn(ExperimentalContracts::class)
 private inline fun <R> ElaborateState.extending(block: ElaborateState.() -> R): R {
+    contract {
+        callsInPlace(block, InvocationKind.EXACTLY_ONCE)
+    }
     val oldEntries = entries
     val oldValues = values
     val result = block()
@@ -401,14 +408,12 @@ private fun ElaborateState.extend(
     name: Concrete.Ident,
     type: Value,
     value: Lazy<Value> = lazyOf(Value.Var(name.text, size)),
-): ElaborateState {
-    return apply {
-        val size = size
-        actualTypes.add(name.span to lazy { size.quote(type) })
-        scopes.add(name.span to name.text)
-        entries = entries.add(Entry(name.text, type))
-        values = values.add(value)
-    }
+) {
+    val size = size
+    actualTypes.add(name.span to lazy { size.quote(type) })
+    scopes.add(name.span to name.text)
+    entries = entries.add(Entry(name.text, type))
+    values = values.add(value)
 }
 
 private fun ElaborateState.diagnosePattern(
@@ -423,8 +428,11 @@ private fun ElaborateState.diagnosePattern(
 
 private fun ElaborateState.synthPattern(pattern: Concrete): Anno<Pattern> {
     return when (pattern) {
+        // p : e  ⇒  v
         is Concrete.Anno -> {
-            val source = checkTerm(pattern.source, Value.Type)
+            val source = extending {
+                checkTerm(pattern.source, Value.Type)
+            }
             val sourceV = values.eval(source.target)
             val target = checkPattern(pattern.target, sourceV)
             target
@@ -434,10 +442,36 @@ private fun ElaborateState.synthPattern(pattern: Concrete): Anno<Pattern> {
     }
 }
 
+// TODO: support nested patterns
 private fun ElaborateState.checkPattern(pattern: Concrete, expected: Value): Anno<Pattern> {
     return when (pattern) {
-        is Concrete.Ident -> Anno(Pattern.Var(pattern.text), expected)
-        else -> diagnosePattern("Unsupported pattern", pattern.span, Severity.ERROR, expected)
+        // x  ⇐  v
+        is Concrete.Ident -> {
+            extend(pattern, expected)
+            Anno(Pattern.Var(pattern.text), expected)
+        }
+
+        // p : e  ⇐  v
+        else -> {
+            val synthesized = synthPattern(pattern)
+            when (size.conv(synthesized.type, expected)) {
+                ConvResult.YES -> {
+                    Anno(synthesized.target, expected)
+                }
+
+                ConvResult.NO -> {
+                    val expectedType = stringify(size.quote(expected), 0u)
+                    val actualType = stringify(size.quote(synthesized.type), 0u)
+                    diagnosePattern("Expected `${expectedType}` but found `${actualType}`", pattern.span, Severity.ERROR, expected)
+                }
+
+                ConvResult.UNKNOWN -> {
+                    val expectedType = stringify(size.quote(expected), 0u)
+                    val actualType = stringify(size.quote(synthesized.type), 0u)
+                    diagnosePattern("Expected `${expectedType}` but found `${actualType}`", pattern.span, Severity.WARNING, expected)
+                }
+            }
+        }
     }
 }
 
@@ -452,8 +486,6 @@ private fun ElaborateState.diagnoseTerm(
 }
 
 private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
-    val entries = entries
-    val values = values
     return when (term) {
         // x  ⇒  v
         is Concrete.Ident -> when (term.text) {
@@ -480,20 +512,18 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
         }
 
         // let x = e e  ⇒  v
-        // let x : e = e e  ⇒  v
         is Concrete.Let -> {
-            val anno = term.anno?.let { anno -> checkTerm(anno, Value.Type) }
-            val init = anno?.let { anno ->
-                val annoV = values.eval(anno.term)
-                checkTerm(term.init, annoV)
-            } ?: synthTerm(term.init)
-            val body = extend(term.name, init.type, lazy { values.eval(init.term) }) {
-                synthTerm(term.body)
+            val binder: Anno<Pattern>
+            val body: Anno<Term>
+            extending {
+                binder = synthPattern(term.binder)
+                body = synthTerm(term.body)
             }
+            val init = checkTerm(term.init, binder.type)
             Anno(
                 Term.Let(
-                    term.name.text,
-                    init.term,
+                    binder.target,
+                    init.target,
                     body.target,
                 ),
                 body.type,
@@ -501,30 +531,22 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
         }
 
         // x : e → e  ⇒  v → v
-        is Concrete.Fun if term.name != null -> {
-            val param = checkTerm(term.param, Value.Type)
-            val paramV = values.eval(param.target)
-            val (result, resultType) = extend(term.name, paramV) {
+        is Concrete.Fun -> {
+            extending {
+                val param = synthPattern(term.param)
                 val result = synthTerm(term.result)
                 val resultType = size.quote(result.type)
-                result to resultType
+                Anno(
+                    Term.FunOf(
+                        param.target,
+                        result.target,
+                    ),
+                    Value.Fun(
+                        param.target,
+                        param.type,
+                    ) { arg -> values.add(lazyOf(arg)).eval(resultType) },
+                )
             }
-            Anno(
-                Term.FunOf(
-                    term.name.text,
-                    result.target,
-                ),
-                Value.Fun(
-                    null,
-                    paramV,
-                ) { arg -> values.add(lazyOf(arg)).eval(resultType) },
-            )
-        }
-
-        // e → e  ⇒  v
-        is Concrete.Fun -> {
-            // TODO: infer parameter type by unification?
-            diagnoseTerm("Function parameter type annotation is required", term.span, Severity.ERROR)
         }
 
         // e ( e )  ⇒  v
@@ -551,22 +573,6 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
             }
         }
 
-        // x : e , e  ⇒  type
-        is Concrete.Pair if term.name != null -> {
-            val first = checkTerm(term.first, Value.Type)
-            val second = extend(term.name, first.type) {
-                checkTerm(term.second, Value.Type)
-            }
-            Anno(
-                Term.Pair(
-                    term.name.text,
-                    first.target,
-                    second.target,
-                ),
-                Value.Type,
-            )
-        }
-
         // e , e  ⇒  v , v
         is Concrete.Pair -> {
             val first = synthTerm(term.first)
@@ -578,24 +584,25 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
                     second.target,
                 ),
                 Value.Pair(
-                    null,
+                    Pattern.Var("$$size"),
                     first.type,
                 ) { first -> values.add(lazyOf(first)).eval(secondType) },
             )
         }
 
         // e @ e  ⇒  type
-        // x : e @ e  ⇒  type
         is Concrete.Refine -> {
-            val base = checkTerm(term.base, Value.Type)
-            val baseV = values.eval(base.target)
-            val property = extend(term.name, baseV) {
-                checkTerm(term.property, Value.Bool)
+            val base: Anno<Pattern>
+            val property: Anno<Term>
+            extending {
+                base = synthPattern(term.base)
+                property = checkTerm(term.property, Value.Bool)
             }
+            val baseType = size.quote(base.type)
             Anno(
                 Term.Refine(
-                    term.name?.text,
                     base.target,
+                    baseType,
                     property.target,
                 ),
                 Value.Type,
@@ -617,6 +624,13 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
             )
         }
 
+        is Concrete.Anno -> {
+            val source = checkTerm(term.source, Value.Type)
+            val sourceV = values.eval(source.target)
+            val target = checkTerm(term.target, sourceV)
+            target
+        }
+
         is Concrete.Err -> Anno(Term.Err, Value.Err)
     }.also {
         actualTypes.add(term.span to lazy { size.quote(it.type) })
@@ -628,71 +642,73 @@ private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term
     val values = values
     return when (term) {
         // let x = e e  ⇐  v
-        // let x : e = e e  ⇐  v
         is Concrete.Let -> {
-            val anno = term.anno?.let { anno -> checkTerm(anno, Value.Type) }
-            val init = anno?.let { anno ->
-                val annoV = values.eval(anno.term)
-                checkTerm(term.init, annoV)
-            } ?: synthTerm(term.init)
-            val body = extend(term.name, init.type, lazy { values.eval(init.term) }) {
-                checkTerm(term.body, expected)
+            val binder: Anno<Pattern>
+            val body: Anno<Term>
+            extending {
+                binder = synthPattern(term.binder)
+                body = checkTerm(term.body, expected)
             }
+            val init = checkTerm(term.init, binder.type)
             Anno(
                 Term.Let(
-                    term.name.text,
-                    init.term,
+                    binder.target,
+                    init.target,
                     body.target,
                 ),
-                expected,
+                body.type,
             )
         }
 
         // e → e  ⇐  type
-        // x : e → e  ⇐  type
         is Concrete.Fun if expected is Value.Type -> {
-            val param = checkTerm(term.param, Value.Type)
-            val paramV = values.eval(param.target)
-            val result = extend(term.name, paramV) {
-                checkTerm(term.result, Value.Type)
+            val param: Anno<Pattern>
+            val result: Anno<Term>
+            extending {
+                param = synthPattern(term.param)
+                result = checkTerm(term.result, Value.Type)
             }
+            val paramType = size.quote(param.type)
             Anno(
                 Term.Fun(
-                    term.name?.text,
                     param.target,
+                    paramType,
                     result.target,
                 ),
                 expected,
             )
         }
 
-        // x → e  ⇐  v → v
-        is Concrete.Fun if term.name == null && term.param is Concrete.Ident && expected is Value.Fun -> {
-            val paramV = expected.param
-            val resultType = expected.result(Value.Var(term.param.text, size))
-            val result = extend(term.param, paramV) {
-                checkTerm(term.result, resultType)
+        // e → e  ⇐  v → v
+        is Concrete.Fun if expected is Value.Fun -> {
+            extending {
+                val size = size
+                val param = checkPattern(term.param, expected.param)
+                val resultType = expected.result(Value.Var("$$size", size))
+                val result = checkTerm(term.result, resultType)
+                Anno(
+                    Term.FunOf(
+                        param.target,
+                        result.target,
+                    ),
+                    expected,
+                )
             }
-            Anno(
-                Term.FunOf(
-                    term.param.text,
-                    result.target,
-                ),
-                expected,
-            )
         }
 
         // e , e  ⇐  type
-        // x : e , e  ⇐  type
         is Concrete.Pair if expected is Value.Type -> {
-            val first = checkTerm(term.first, Value.Type)
-            val second = extend(term.name, first.type) {
-                checkTerm(term.second, Value.Type)
+            val first: Anno<Pattern>
+            val second: Anno<Term>
+            extending {
+                first = synthPattern(term.first)
+                second = checkTerm(term.second, Value.Type)
             }
+            val firstType = size.quote(first.type)
             Anno(
                 Term.Pair(
-                    term.name?.text,
                     first.target,
+                    firstType,
                     second.target,
                 ),
                 expected,
@@ -700,7 +716,7 @@ private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term
         }
 
         // e , e  ⇐  v , v
-        is Concrete.Pair if term.name == null && expected is Value.Pair -> {
+        is Concrete.Pair if expected is Value.Pair -> {
             val first = checkTerm(term.first, expected.first)
             val firstV = values.eval(first.target)
             val second = checkTerm(term.second, expected.second(firstV))
