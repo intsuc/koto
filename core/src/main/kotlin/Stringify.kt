@@ -70,12 +70,6 @@ fun stringify(term: Term, minBp: UInt): String {
 
 private fun stringifyPattern(pattern: Pattern, minBp: UInt): String {
     return when (pattern) {
-        is Pattern.PairOf -> {
-            val first = stringifyPattern(pattern.first, 101u)
-            val second = stringifyPattern(pattern.second, 100u)
-            p(minBp, 100u, "$first, $second")
-        }
-
         is Pattern.Var -> pattern.text
         is Pattern.Err -> "error"
     }
