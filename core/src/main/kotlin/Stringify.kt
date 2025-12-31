@@ -25,15 +25,15 @@ fun stringify(term: Term, minBp: UInt): String {
 
         is Term.Fun -> {
             val binder = stringifyPattern(term.binder, 0u)
-            val param = stringify(term.param, 6u)
-            val result = stringify(term.result, 5u)
-            p(minBp, 5u, "$binder : $param → $result")
+            val param = stringify(term.param, 51u)
+            val result = stringify(term.result, 50u)
+            p(minBp, 50u, "$binder : $param → $result")
         }
 
         is Term.FunOf -> {
             val binder = stringifyPattern(term.binder, 0u)
-            val result = stringify(term.result, 5u)
-            p(minBp, 5u, "$binder → $result")
+            val result = stringify(term.result, 50u)
+            p(minBp, 50u, "$binder → $result")
         }
 
         is Term.Call -> {
@@ -44,22 +44,22 @@ fun stringify(term: Term, minBp: UInt): String {
 
         is Term.Pair -> {
             val binder = stringifyPattern(term.binder, 0u)
-            val first = stringify(term.first, 11u)
-            val second = stringify(term.second, 10u)
-            p(minBp, 10u, "$binder : $first, $second")
+            val first = stringify(term.first, 101u)
+            val second = stringify(term.second, 100u)
+            p(minBp, 100u, "$binder : $first, $second")
         }
 
         is Term.PairOf -> {
-            val first = stringify(term.first, 11u)
-            val second = stringify(term.second, 10u)
-            p(minBp, 10u, "$first, $second")
+            val first = stringify(term.first, 101u)
+            val second = stringify(term.second, 100u)
+            p(minBp, 100u, "$first, $second")
         }
 
         is Term.Refine -> {
             val binder = stringifyPattern(term.binder, 0u)
-            val base = stringify(term.base, 15u)
-            val property = stringify(term.property, 15u)
-            p(minBp, 15u, "$binder : $base @ $property")
+            val base = stringify(term.base, 200u)
+            val property = stringify(term.property, 200u)
+            p(minBp, 200u, "$binder : $base @ $property")
         }
 
         is Term.Var -> term.text
@@ -70,6 +70,12 @@ fun stringify(term: Term, minBp: UInt): String {
 
 private fun stringifyPattern(pattern: Pattern, minBp: UInt): String {
     return when (pattern) {
+        is Pattern.PairOf -> {
+            val first = stringifyPattern(pattern.first, 101u)
+            val second = stringifyPattern(pattern.second, 100u)
+            p(minBp, 100u, "$first, $second")
+        }
+
         is Pattern.Var -> pattern.text
         is Pattern.Err -> "error"
     }

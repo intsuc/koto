@@ -253,10 +253,10 @@ private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete 
     }
 
     // h : e
-    if (minBp <= 50u && peekable() && peek() == ':') {
+    if (minBp <= 20u && peekable() && peek() == ':') {
         skip() // :
         skipWhitespace()
-        val source = parseAtLeast(50u)
+        val source = parseAtLeast(20u)
         val next = Concrete.Anno(
             target = head,
             source = source,
