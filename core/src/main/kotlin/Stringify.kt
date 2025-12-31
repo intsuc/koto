@@ -63,6 +63,7 @@ fun stringify(term: Term, minBp: UInt): String {
         }
 
         is Term.Var -> term.text
+        is Term.Meta -> "?"
         is Term.Err -> "error"
     }
 }

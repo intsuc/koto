@@ -45,6 +45,9 @@ let or  = (x : bool) → (y : bool) → if x then true else y
 let xor = (x : bool) → (y : bool) → if x then if y then false else true else y
 
 # let id = x → x
+# let id = x → if x then x : int64 else 0
+let id = x → if x then x else x
+let id = x → x : int64
 let id = (x : int64) → x
 let id : (-:int64) → int64 = x → x
 let id : (-:int64) → int64 = (x : int64) → x

@@ -95,6 +95,8 @@ sealed interface Term {
         val index: Index,
     ) : Term
 
+    data object Meta : Term
+
     data object Err : Term
 }
 
@@ -161,6 +163,10 @@ sealed interface Value {
     data class Var(
         val text: String,
         val level: Level,
+    ) : Value
+
+    data class Meta(
+        var solution: Value?,
     ) : Value
 
     data object Err : Value
@@ -253,12 +259,13 @@ private fun PersistentList<Lazy<Value>>.eval(term: Term): Value {
             Value.Refine(term.binder, base) { base -> add(lazyOf(base)).eval(term.property) }
         }
 
+        is Term.Meta -> Value.Meta(null)
         is Term.Err -> Value.Err
     }
 }
 
 private fun Level.quote(value: Value): Term {
-    return when (value) {
+    return when (val value = force(value)) {
         is Value.Type -> Term.Type
         is Value.Bool -> Term.Bool
         is Value.BoolOf -> Term.BoolOf(value.value)
@@ -310,7 +317,30 @@ private fun Level.quote(value: Value): Term {
             this - value.level - 1u,
         )
 
+        is Value.Meta -> Term.Meta
+
         is Value.Err -> Term.Err
+    }
+}
+
+private tailrec fun force(value: Value): Value {
+    return when (value) {
+        is Value.Meta -> when (val solution = value.solution) {
+            null -> value
+            else -> force(solution)
+        }
+
+        else -> value
+    }
+}
+
+/**
+ * Ensures that the given value is solved.
+ * Call [ensureSolved] whenever a [Value.Meta] is created to avoid global unification.
+ */
+private fun ElaborateState.ensureSolved(value: Value, span: Span) {
+    if (force(value) is Value.Meta) {
+        diagnostics.add(Diagnostic("Unsolved metavariable", span, Severity.ERROR))
     }
 }
 
@@ -332,55 +362,67 @@ private inline infix fun ConvResult.then(other: () -> ConvResult): ConvResult {
     }
 }
 
-private fun Level.conv(term1: Value, term2: Value): ConvResult {
-    return when (term1) {
-        is Value.Type if term2 is Value.Type -> ConvResult.YES
-        is Value.Bool if term2 is Value.Bool -> ConvResult.YES
-        is Value.BoolOf if term2 is Value.BoolOf -> (term1.value == term2.value).toConvResult()
-        is Value.If if term2 is Value.If -> conv(term1.cond, term2.cond) then {
-            conv(term1.thenBranch, term2.thenBranch) then {
-                conv(term1.elseBranch, term2.elseBranch)
+private fun Level.conv(v1: Value, v2: Value): ConvResult {
+    val v1 = force(v1)
+    val v2 = force(v2)
+    return when {
+        v1 is Value.Type && v2 is Value.Type -> ConvResult.YES
+        v1 is Value.Bool && v2 is Value.Bool -> ConvResult.YES
+        v1 is Value.BoolOf && v2 is Value.BoolOf -> (v1.value == v2.value).toConvResult()
+        v1 is Value.If && v2 is Value.If -> conv(v1.cond, v2.cond) then {
+            conv(v1.thenBranch, v2.thenBranch) then {
+                conv(v1.elseBranch, v2.elseBranch)
             }
         }
 
-        is Value.Int64 if term2 is Value.Int64 -> ConvResult.YES
-        is Value.Int64Of if term2 is Value.Int64Of -> (term1.value == term2.value).toConvResult()
-        is Value.Float64 if term2 is Value.Float64 -> ConvResult.YES
-        is Value.Float64Of if term2 is Value.Float64Of -> (term1.value == term2.value).toConvResult()
-        is Value.Fun if term2 is Value.Fun -> conv(term1.param, term2.param) then {
+        v1 is Value.Int64 && v2 is Value.Int64 -> ConvResult.YES
+        v1 is Value.Int64Of && v2 is Value.Int64Of -> (v1.value == v2.value).toConvResult()
+        v1 is Value.Float64 && v2 is Value.Float64 -> ConvResult.YES
+        v1 is Value.Float64Of && v2 is Value.Float64Of -> (v1.value == v2.value).toConvResult()
+        v1 is Value.Fun && v2 is Value.Fun -> conv(v1.param, v2.param) then {
             Value.Var("$$this", this).let { x ->
-                (this + 1u).conv(term1.result(x), term2.result(x))
+                (this + 1u).conv(v1.result(x), v2.result(x))
             }
         }
 
-        is Value.FunOf if term2 is Value.FunOf -> Value.Var("$$this", this).let { x ->
-            (this + 1u).conv(term1.result(x), term2.result(x))
+        v1 is Value.FunOf && v2 is Value.FunOf -> Value.Var("$$this", this).let { x ->
+            (this + 1u).conv(v1.result(x), v2.result(x))
         }
 
-        is Value.Call if term2 is Value.Call -> conv(term1.func, term2.func) then { conv(term1.arg, term2.arg) }
-        is Value.Pair if term2 is Value.Pair -> conv(term1.first, term2.first) then {
+        v1 is Value.Call && v2 is Value.Call -> conv(v1.func, v2.func) then { conv(v1.arg, v2.arg) }
+        v1 is Value.Pair && v2 is Value.Pair -> conv(v1.first, v2.first) then {
             Value.Var("$$this", this).let { x ->
-                conv(term1.second(x), term2.second(x))
+                conv(v1.second(x), v2.second(x))
             }
         }
 
-        is Value.PairOf if term2 is Value.PairOf -> conv(term1.first, term2.first) then { conv(term1.second, term2.second) }
-        is Value.Refine if term2 is Value.Refine -> conv(term1.base, term2.base) then {
+        v1 is Value.PairOf && v2 is Value.PairOf -> conv(v1.first, v2.first) then { conv(v1.second, v2.second) }
+        v1 is Value.Refine && v2 is Value.Refine -> conv(v1.base, v2.base) then {
             Value.Var("$$this", this).let { x ->
-                when (conv(term1.property(x), term2.property(x))) {
+                when (conv(v1.property(x), v2.property(x))) {
                     ConvResult.YES -> ConvResult.YES
                     else -> ConvResult.UNKNOWN
                 }
             }
         }
 
-        is Value.Var if term2 is Value.Var -> (term1.level == term2.level).toConvResult()
-        is Value.Err -> ConvResult.YES
-        else if term2 == Value.Err -> ConvResult.YES
-        else if term2 is Value.Refine -> when (conv(term1, term2.base)) {
+        v2 is Value.Refine -> when (conv(v1, v2.base)) {
             ConvResult.YES -> ConvResult.UNKNOWN
             else -> ConvResult.NO
         }
+
+        v1 is Value.Var && v2 is Value.Var -> (v1.level == v2.level).toConvResult()
+        v1 is Value.Meta -> {
+            v1.solution = v2
+            ConvResult.YES
+        }
+
+        v2 is Value.Meta -> {
+            v2.solution = v1
+            ConvResult.YES
+        }
+
+        v1 == Value.Err || v2 == Value.Err -> ConvResult.YES
 
         else -> ConvResult.NO
     }
@@ -428,6 +470,13 @@ private fun ElaborateState.diagnosePattern(
 
 private fun ElaborateState.synthPattern(pattern: Concrete): Anno<Pattern> {
     return when (pattern) {
+        // x  ⇒  v
+        is Concrete.Ident -> {
+            val type = Value.Meta(null)
+            extend(pattern, type)
+            Anno(Pattern.Var(pattern.text), type)
+        }
+
         // p : e  ⇒  v
         is Concrete.Anno -> {
             val source = extending {
@@ -520,6 +569,7 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
                 body = synthTerm(term.body)
             }
             val init = checkTerm(term.init, binder.type)
+            ensureSolved(binder.type, term.binder.span)
             Anno(
                 Term.Let(
                     binder.target,
@@ -530,11 +580,12 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
             )
         }
 
-        // x : e → e  ⇒  v → v
+        // e → e  ⇒  v → v
         is Concrete.Fun -> {
             extending {
                 val param = synthPattern(term.param)
                 val result = synthTerm(term.result)
+                ensureSolved(param.type, term.param.span)
                 val resultType = size.quote(result.type)
                 Anno(
                     Term.FunOf(
@@ -552,7 +603,7 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
         // e ( e )  ⇒  v
         is Concrete.Call -> {
             val func = synthTerm(term.func)
-            when (val funcType = func.type) {
+            when (val funcType = force(func.type)) {
                 is Value.Fun -> {
                     val arg = checkTerm(term.arg, funcType.param)
                     val argV = values.eval(arg.target)
@@ -597,6 +648,7 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
             extending {
                 base = synthPattern(term.base)
                 property = checkTerm(term.property, Value.Bool)
+                ensureSolved(base.type, term.base.span)
             }
             val baseType = size.quote(base.type)
             Anno(
@@ -638,8 +690,7 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
 }
 
 private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term> {
-    val _ = entries
-    val values = values
+    val expected = force(expected)
     return when (term) {
         // let x = e e  ⇐  v
         is Concrete.Let -> {
@@ -650,6 +701,7 @@ private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term
                 body = checkTerm(term.body, expected)
             }
             val init = checkTerm(term.init, binder.type)
+            ensureSolved(binder.type, term.binder.span)
             Anno(
                 Term.Let(
                     binder.target,
@@ -667,6 +719,7 @@ private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term
             extending {
                 param = synthPattern(term.param)
                 result = checkTerm(term.result, Value.Type)
+                ensureSolved(param.type, term.param.span)
             }
             val paramType = size.quote(param.type)
             Anno(
@@ -681,11 +734,11 @@ private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term
 
         // e → e  ⇐  v → v
         is Concrete.Fun if expected is Value.Fun -> {
+            val resultType = expected.result(Value.Var("$$size", size))
             extending {
-                val size = size
                 val param = checkPattern(term.param, expected.param)
-                val resultType = expected.result(Value.Var("$$size", size))
                 val result = checkTerm(term.result, resultType)
+                ensureSolved(param.type, term.param.span)
                 Anno(
                     Term.FunOf(
                         param.target,
@@ -703,6 +756,7 @@ private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term
             extending {
                 first = synthPattern(term.first)
                 second = checkTerm(term.second, Value.Type)
+                ensureSolved(first.type, term.first.span)
             }
             val firstType = size.quote(first.type)
             Anno(
