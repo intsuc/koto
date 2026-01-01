@@ -23,6 +23,14 @@ fun stringify(term: Term, minBp: UInt): String {
             "let $binder = $init $body"
         }
 
+        is Term.LetFun -> {
+            val name = term.name
+            val binder = stringifyPattern(term.binder, 0u)
+            val body = stringify(term.body, 0u)
+            val next = stringify(term.next, 0u)
+            "fun $name($binder) = $body $next"
+        }
+
         is Term.Fun -> {
             val binder = stringifyPattern(term.binder, 0u)
             val param = stringify(term.param, 51u)

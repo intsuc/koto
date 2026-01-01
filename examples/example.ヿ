@@ -58,4 +58,6 @@ let - : (-:int64) → int64 = d-id(int64)
 let - : int64 = d-id(int64)(3)
 let - : bool = d-id(bool)(true)
 
+fun loop(x : int64) → int64 = loop(x)
+
 type

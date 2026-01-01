@@ -57,6 +57,14 @@ sealed interface Term {
         val body: Term,
     ) : Term
 
+    data class LetFun(
+        val name: String,
+        val binder: Pattern,
+        val param: Term,
+        val body: Term,
+        val next: Term,
+    ) : Term
+
     data class Fun(
         val binder: Pattern,
         val param: Term,
@@ -221,6 +229,11 @@ private fun PersistentList<Lazy<Value>>.eval(term: Term): Value {
         is Term.Float64 -> Value.Float64
         is Term.Float64Of -> Value.Float64Of(term.value)
         is Term.Let -> add(lazy { eval(term.init) }).eval(term.body)
+        is Term.LetFun -> {
+            val func = Value.FunOf(term.binder) { arg -> add(lazyOf(arg)).eval(term.body) }
+            add(lazyOf(func)).eval(term.next)
+        }
+
         is Term.Var -> {
             val level = (lastIndex.toUInt() - term.index).toInt()
             this[level].value
@@ -412,12 +425,12 @@ private fun Level.conv(v1: Value, v2: Value): ConvResult {
         }
 
         v1 is Value.Var && v2 is Value.Var -> (v1.level == v2.level).toConvResult()
-        v1 is Value.Meta -> {
+        v1 is Value.Meta && v1 !== v2 -> {
             v1.solution = v2
             ConvResult.YES
         }
 
-        v2 is Value.Meta -> {
+        v2 is Value.Meta && v1 !== v2 -> {
             v2.solution = v1
             ConvResult.YES
         }
@@ -580,6 +593,42 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
             )
         }
 
+        // fun x(e) → e e  ⇒  v
+        is Concrete.LetFun -> {
+            val param: Anno<Pattern>
+            val body: Anno<Term>
+            val result: Anno<Term>
+            val funType: Value
+            extending {
+                param = synthPattern(term.param)
+                val values = values
+                result = checkTerm(term.result, Value.Type)
+                val resultV = values.eval(result.target)
+                funType = Value.Fun(
+                    param.target,
+                    param.type,
+                ) { arg -> values.add(lazyOf(arg)).eval(result.target) }
+                extend(term.name, funType)
+                body = checkTerm(term.body, resultV)
+                ensureSolved(param.type, term.param.span)
+            }
+            val paramType = size.quote(param.type)
+            extending {
+                extend(term.name, funType)
+                val next = synthTerm(term.next)
+                Anno(
+                    Term.LetFun(
+                        term.name.text,
+                        param.target,
+                        paramType,
+                        body.target,
+                        next.target,
+                    ),
+                    next.type,
+                )
+            }
+        }
+
         // e → e  ⇒  v → v
         is Concrete.Fun -> {
             extending {
@@ -710,6 +759,42 @@ private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term
                 ),
                 body.type,
             )
+        }
+
+        // fun x(e) → e e  ⇐  v
+        is Concrete.LetFun -> {
+            val param: Anno<Pattern>
+            val body: Anno<Term>
+            val result: Anno<Term>
+            val funType: Value
+            extending {
+                param = synthPattern(term.param)
+                val values = values
+                result = checkTerm(term.result, Value.Type)
+                val resultV = values.eval(result.target)
+                funType = Value.Fun(
+                    param.target,
+                    param.type,
+                ) { arg -> values.add(lazyOf(arg)).eval(result.target) }
+                extend(term.name, funType)
+                body = checkTerm(term.body, resultV)
+                ensureSolved(param.type, term.param.span)
+            }
+            val paramType = size.quote(param.type)
+            extending {
+                extend(term.name, funType)
+                val next = checkTerm(term.next, expected)
+                Anno(
+                    Term.LetFun(
+                        term.name.text,
+                        param.target,
+                        paramType,
+                        body.target,
+                        next.target,
+                    ),
+                    expected,
+                )
+            }
         }
 
         // e → e  ⇐  type
