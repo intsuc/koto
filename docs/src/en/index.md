@@ -86,10 +86,11 @@ type
 ### Tier 1
 
 - [ ] x86-64 Windows Vulkan
-- [ ] WebAssembly Browser WebGPU
+- [ ] JavaScript Browser WebGPU
 
 ### Tier 2
 
+- [ ] WebAssembly Browser WebGPU
 - [ ] AArch64 Linux Vulkan
 - [ ] x86-64 Linux Vulkan
 - [ ] AArch64 Windows Vulkan
