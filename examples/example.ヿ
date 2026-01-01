@@ -59,5 +59,7 @@ let - : int64 = d-id(int64)(3)
 let - : bool = d-id(bool)(true)
 
 fun loop(x : int64) → int64 = loop(x)
+fun loop-t(a : type) → type = loop-t(a)
+# let error-but-not-diverge : loop-t(type) = type
 
 type

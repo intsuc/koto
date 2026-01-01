@@ -1,0 +1,12 @@
+let id : (a-t : type) → (a : a-t) → a-t = a-t → a → a
+
+let id-bool : (a : bool) → bool = id(bool)
+let id-bool-true : bool = id(bool)(true)
+
+let id-int64 : (a : int64) → int64 = id(int64)
+let id-int64-1 : int64 = id(int64)(1)
+
+let id-type : (a : type) → type = id(type)
+let id-type-type : type = id(type)(type)
+
+type
