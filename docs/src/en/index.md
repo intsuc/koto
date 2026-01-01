@@ -127,6 +127,7 @@ type
 
 ## Random resources
 
+- [A Core Language for Extended Pattern Matching and Binding Boolean Expressions](https://www.chargueraud.org/research/2025/bbe/bbe-ml-workshop.pdf)
 - [Using dependent types to express modular structure](https://doi.org/10.1145/512644.512670)
 - [Type Universes as Kripke Worlds](https://doi.org/10.1145/3747532)
 - [Linearity and Uniqueness: An Entente Cordiale](https://doi.org/10.1007/978-3-030-99336-8_13)
