@@ -13,13 +13,8 @@ typealias Index = UInt
 /** de Bruijn level */
 typealias Level = UInt
 
-sealed interface Pattern {
-    data class Var(
-        val text: String,
-    ) : Pattern
-
-    data object Err : Pattern
-}
+// TODO: support complex patterns
+typealias Pattern = String
 
 sealed interface Term {
     data object Type : Term
@@ -62,26 +57,26 @@ sealed interface Term {
 
     data class LetFun(
         val name: String,
-        val binder: Pattern,
-        val param: Term,
+        val binders: List<Pattern>,
+        val params: List<Term>,
         val body: Term,
         val next: Term,
     ) : Term
 
     data class Fun(
-        val binder: Pattern,
-        val param: Term,
+        val binders: List<Pattern>,
+        val params: List<Term>,
         val result: Term,
     ) : Term
 
     data class FunOf(
-        val binder: Pattern,
-        val result: Term,
+        val binders: List<Pattern>,
+        val body: Term,
     ) : Term
 
     data class Call(
         val func: Term,
-        val arg: Term,
+        val args: List<Term>,
     ) : Term
 
     data class Pair(
@@ -144,20 +139,22 @@ sealed interface Value {
         val value: String,
     ) : Value
 
+    // TODO: use telescope
     data class Fun(
-        val binder: Pattern,
-        val param: Value,
-        val result: (arg: Value) -> Value,
+        val binders: List<Pattern>,
+        val params: List<Value>,
+        val result: (args: List<Value>) -> Value,
     ) : Value
 
+    // TODO: use telescope
     data class FunOf(
-        val binder: Pattern,
-        val result: (arg: Value) -> Value,
+        val binders: List<Pattern>,
+        val result: (args: List<Value>) -> Value,
     ) : Value
 
     data class Call(
         val func: Value,
-        val arg: Value,
+        val args: List<Value>,
     ) : Value
 
     data class Pair(
@@ -204,7 +201,7 @@ private data class Entry(
 
 private class ElaborateState {
     var entries: PersistentList<Entry> = persistentListOf()
-    var values: PersistentList<Lazy<Value>> = persistentListOf()
+    var values: PersistentList<Value> = persistentListOf()
     val expectedTypes: MutableList<Pair<Span, Lazy<Term>>> = mutableListOf()
     val actualTypes: MutableList<Pair<Span, Lazy<Term>>> = mutableListOf()
     val scopes: MutableList<Pair<Span, String>> = mutableListOf()
@@ -212,7 +209,7 @@ private class ElaborateState {
     val size: Level get() = entries.size.toUInt()
 }
 
-private fun PersistentList<Lazy<Value>>.eval(term: Term): Value {
+private fun PersistentList<Value>.eval(term: Term): Value {
     return when (term) {
         is Term.Type -> Value.Type
         is Term.Bool -> Value.Bool
@@ -239,39 +236,39 @@ private fun PersistentList<Lazy<Value>>.eval(term: Term): Value {
         is Term.Float64Of -> Value.Float64Of(term.value)
         is Term.Str -> Value.Str
         is Term.StrOf -> Value.StrOf(term.value)
-        is Term.Let -> add(lazy { eval(term.init) }).eval(term.body)
+        is Term.Let -> add(eval(term.init)).eval(term.body)
         is Term.LetFun -> {
-            val func = Value.FunOf(term.binder) { arg -> add(lazyOf(arg)).eval(term.body) }
-            add(lazyOf(func)).eval(term.next)
+            val func = Value.FunOf(term.binders) { args -> addAll(args).eval(term.body) }
+            add(func).eval(term.next)
         }
 
         is Term.Var -> {
             val level = (lastIndex.toUInt() - term.index).toInt()
-            this[level].value
+            this[level]
         }
 
         is Term.Fun -> Value.Fun(
-            term.binder,
-            eval(term.param),
-        ) { arg -> add(lazyOf(arg)).eval(term.result) }
+            term.binders,
+            term.params.map { param -> eval(param) },
+        ) { args -> addAll(args).eval(term.result) }
 
         is Term.FunOf -> Value.FunOf(
-            term.binder,
-        ) { arg -> add(lazyOf(arg)).eval(term.result) }
+            term.binders,
+        ) { args -> addAll(args).eval(term.body) }
 
         is Term.Call -> {
             val func = eval(term.func)
-            val arg = eval(term.arg)
+            val args = term.args.map { arg -> eval(arg) }
             when (func) {
                 // is Value.FunOf -> func.result(arg)
-                else -> Value.Call(func, arg)
+                else -> Value.Call(func, args)
             }
         }
 
         is Term.Pair -> Value.Pair(
             term.binder,
             eval(term.first),
-        ) { first -> add(lazyOf(first)).eval(term.second) }
+        ) { first -> add(first).eval(term.second) }
 
         is Term.PairOf -> Value.PairOf(
             eval(term.first),
@@ -280,7 +277,7 @@ private fun PersistentList<Lazy<Value>>.eval(term: Term): Value {
 
         is Term.Refine -> {
             val base = eval(term.base)
-            Value.Refine(term.binder, base) { base -> add(lazyOf(base)).eval(term.property) }
+            Value.Refine(term.binder, base) { base -> add(base).eval(term.property) }
         }
 
         is Term.Meta -> Value.Meta(null)
@@ -305,26 +302,39 @@ private fun Level.quote(value: Value): Term {
         is Value.Float64Of -> Term.Float64Of(value.value)
         is Value.Str -> Term.Str
         is Value.StrOf -> Term.StrOf(value.value)
-        is Value.Fun -> Term.Fun(
-            value.binder,
-            quote(value.param),
-            (this + 1u).quote(value.result(Value.Var("$$this", this))),
-        )
+        is Value.Fun -> {
+            val params = value.params.mapIndexed { i, param ->
+                (this + i.toUInt()).quote(param)
+            }
+            val result = (this + value.params.size.toUInt()).quote(value.result((0u until value.params.size.toUInt()).map { i ->
+                Value.Var(value.binders[i.toInt()], this + i)
+            }))
+            Term.Fun(
+                value.binders,
+                params,
+                result,
+            )
+        }
 
-        is Value.FunOf -> Term.FunOf(
-            value.binder,
-            (this + 1u).quote(value.result(Value.Var("$$this", this))),
-        )
+        is Value.FunOf -> {
+            val result = (this + value.binders.size.toUInt()).quote(value.result((0u until value.binders.size.toUInt()).map { i ->
+                Value.Var(value.binders[i.toInt()], this + i)
+            }))
+            Term.FunOf(
+                value.binders,
+                result,
+            )
+        }
 
         is Value.Call -> Term.Call(
             quote(value.func),
-            quote(value.arg),
+            value.args.map { arg -> quote(arg) },
         )
 
         is Value.Pair -> Term.Pair(
             value.binder,
             quote(value.first),
-            (this + 1u).quote(value.second(Value.Var("$$this", this)))
+            (this + 1u).quote(value.second(Value.Var(value.binder, this)))
         )
 
         is Value.PairOf -> Term.PairOf(
@@ -335,7 +345,7 @@ private fun Level.quote(value: Value): Term {
         is Value.Refine -> Term.Refine(
             value.binder,
             quote(value.base),
-            (this + 1u).quote(value.property(Value.Var("$$this", this))),
+            (this + 1u).quote(value.property(Value.Var(value.binder, this))),
         )
 
         is Value.Var -> Term.Var(
@@ -388,6 +398,18 @@ private inline infix fun ConvResult.then(other: () -> ConvResult): ConvResult {
     }
 }
 
+private fun Level.convZip(vs1: List<Value>, vs2: List<Value>): ConvResult {
+    if (vs1.size != vs2.size) return ConvResult.NO
+    var result = ConvResult.YES
+    for (i in vs1.indices) {
+        result = result then {
+            conv(vs1[i], vs2[i])
+        }
+        if (result != ConvResult.YES) break
+    }
+    return result
+}
+
 private fun Level.conv(v1: Value, v2: Value): ConvResult {
     val v1 = force(v1)
     val v2 = force(v2)
@@ -407,17 +429,21 @@ private fun Level.conv(v1: Value, v2: Value): ConvResult {
         v1 is Value.Float64Of && v2 is Value.Float64Of -> (v1.value == v2.value).toConvResult()
         v1 is Value.Str && v2 is Value.Str -> ConvResult.YES
         v1 is Value.StrOf && v2 is Value.StrOf -> (v1.value == v2.value).toConvResult()
-        v1 is Value.Fun && v2 is Value.Fun -> conv(v1.param, v2.param) then {
-            Value.Var("$$this", this).let { x ->
-                (this + 1u).conv(v1.result(x), v2.result(x))
+        v1 is Value.Fun && v2 is Value.Fun -> convZip(v1.params, v2.params) then {
+            val args = (0u until v1.params.size.toUInt()).map { i ->
+                Value.Var("$$this", this + i)
             }
+            (this + v1.params.size.toUInt()).conv(v1.result(args), v2.result(args))
         }
 
-        v1 is Value.FunOf && v2 is Value.FunOf -> Value.Var("$$this", this).let { x ->
-            (this + 1u).conv(v1.result(x), v2.result(x))
+        v1 is Value.FunOf && v2 is Value.FunOf -> {
+            val args = (0u until v1.binders.size.toUInt()).map { i ->
+                Value.Var("$$this", this + i)
+            }
+            (this + v1.binders.size.toUInt()).conv(v1.result(args), v2.result(args))
         }
 
-        v1 is Value.Call && v2 is Value.Call -> conv(v1.func, v2.func) then { conv(v1.arg, v2.arg) }
+        v1 is Value.Call && v2 is Value.Call -> conv(v1.func, v2.func) then { convZip(v1.args, v2.args) }
         v1 is Value.Pair && v2 is Value.Pair -> conv(v1.first, v2.first) then {
             Value.Var("$$this", this).let { x ->
                 conv(v1.second(x), v2.second(x))
@@ -475,14 +501,16 @@ private inline fun <R> ElaborateState.extending(block: ElaborateState.() -> R): 
 }
 
 private fun ElaborateState.extend(
-    name: Concrete.Ident,
+    name: String,
+    nameSpan: Span,
+    scope: Span,
     type: Value,
-    value: Lazy<Value> = lazyOf(Value.Var(name.text, size)),
+    value: Value = Value.Var(name, size),
 ) {
     val size = size
-    actualTypes.add(name.span to lazy { size.quote(type) })
-    scopes.add(name.span to name.text)
-    entries = entries.add(Entry(name.text, type))
+    actualTypes.add(nameSpan to lazy { size.quote(type) })
+    scopes.add(scope to name)
+    entries = entries.add(Entry(name, type))
     values = values.add(value)
 }
 
@@ -491,20 +519,18 @@ private fun ElaborateState.diagnosePattern(
     span: Span,
     severity: Severity,
     expected: Value = Value.Err,
-    pattern: Pattern = Pattern.Err,
+    pattern: Pattern = "$$size",
 ): Anno<Pattern> {
     diagnostics.add(Diagnostic(message, span, severity))
     return Anno(pattern, expected)
 }
 
-// TODO: collect entries to be added later
 private fun ElaborateState.synthPattern(pattern: Concrete): Anno<Pattern> {
     return when (pattern) {
         // x  ⇒  v
         is Concrete.Ident -> {
             val type = Value.Meta(null)
-            extend(pattern, type)
-            Anno(Pattern.Var(pattern.text), type)
+            Anno(pattern.text, type)
         }
 
         // p : e  ⇒  v
@@ -513,21 +539,19 @@ private fun ElaborateState.synthPattern(pattern: Concrete): Anno<Pattern> {
                 checkTerm(pattern.source, Value.Type)
             }
             val sourceV = values.eval(source.target)
-            val target = checkPattern(pattern.target, sourceV)
-            target
+            val target = synthPattern(pattern.target)
+            Anno(target.target, sourceV)
         }
 
-        else -> diagnosePattern("Type annotation is required in pattern", pattern.span, Severity.ERROR)
+        else -> diagnosePattern("Unsupported pattern", pattern.span, Severity.ERROR)
     }
 }
 
-// TODO: support nested patterns
 private fun ElaborateState.checkPattern(pattern: Concrete, expected: Value): Anno<Pattern> {
     return when (pattern) {
         // x  ⇐  v
         is Concrete.Ident -> {
-            extend(pattern, expected)
-            Anno(Pattern.Var(pattern.text), expected)
+            Anno(pattern.text, expected)
         }
 
         // p : e  ⇐  v
@@ -597,52 +621,59 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
 
         // let x = e e  ⇒  v
         is Concrete.Let -> {
-            val binder: Anno<Pattern>
-            val body: Anno<Term>
-            extending {
-                binder = synthPattern(term.binder)
-                body = synthTerm(term.body)
-            }
+            val binder = synthPattern(term.binder)
             val init = checkTerm(term.init, binder.type)
-            ensureSolved(binder.type, term.binder.span)
-            Anno(
-                Term.Let(
-                    binder.target,
-                    init.target,
-                    body.target,
-                ),
-                body.type,
-            )
+            extending {
+                extend(binder.target, term.binder.span, term.scope, binder.type)
+                val body = synthTerm(term.next)
+                ensureSolved(binder.type, term.binder.span)
+                Anno(
+                    Term.Let(
+                        binder.target,
+                        init.target,
+                        body.target,
+                    ),
+                    body.type,
+                )
+            }
         }
 
-        // fun x(e) → e e  ⇒  v
+        // fun x( e , … , e ) → e = e e  ⇒  v
         is Concrete.LetFun -> {
-            val param: Anno<Pattern>
+            val binders = mutableListOf<Pattern>()
+            val params = mutableListOf<Term>()
+            val paramsV = mutableListOf<Value>()
             val body: Anno<Term>
-            val result: Anno<Term>
             val funType: Value
             extending {
-                param = synthPattern(term.param)
-                val values = values
-                result = checkTerm(term.result, Value.Type)
+                val values1 = values
+                for (param in term.params) {
+                    val param1 = synthPattern(param)
+                    binders.add(param1.target)
+                    params.add(size.quote(param1.type))
+                    paramsV.add(param1.type)
+                    extend(param1.target, param.span, term.bodyScope, param1.type)
+                }
+                val result = checkTerm(term.result, Value.Type)
                 val resultV = values.eval(result.target)
                 funType = Value.Fun(
-                    param.target,
-                    param.type,
-                ) { arg -> values.add(lazyOf(arg)).eval(result.target) }
-                extend(term.name, funType)
+                    binders,
+                    paramsV,
+                ) { args -> values1.addAll(args).eval(result.target) }
+                extend(term.name.text, term.name.span, term.bodyScope, funType)
                 body = checkTerm(term.body, resultV)
-                ensureSolved(param.type, term.param.span)
+                for ((paramV, param) in paramsV zip term.params) {
+                    ensureSolved(paramV, param.span)
+                }
             }
-            val paramType = size.quote(param.type)
             extending {
-                extend(term.name, funType)
+                extend(term.name.text, term.name.span, term.nextScope, funType)
                 val next = synthTerm(term.next)
                 Anno(
                     Term.LetFun(
                         term.name.text,
-                        param.target,
-                        paramType,
+                        binders,
+                        params,
                         body.target,
                         next.target,
                     ),
@@ -651,44 +682,90 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
             }
         }
 
-        // e → e  ⇒  v → v
+        // fun( e, … , e ) → e  ⇒  type
         is Concrete.Fun -> {
             extending {
-                val param = synthPattern(term.param)
-                val result = synthTerm(term.result)
-                ensureSolved(param.type, term.param.span)
-                val resultType = size.quote(result.type)
+                val binders = mutableListOf<Pattern>()
+                val params = mutableListOf<Term>()
+                val paramsV = mutableListOf<Value>()
+                for (param in term.params) {
+                    val param1 = synthPattern(param)
+                    binders.add(param1.target)
+                    params.add(size.quote(param1.type))
+                    paramsV.add(param1.type)
+                    extend(param1.target, param.span, term.scope, param1.type)
+                }
+                val result = checkTerm(term.result, Value.Type)
+                for ((paramV, param) in paramsV zip term.params) {
+                    ensureSolved(paramV, param.span)
+                }
                 Anno(
-                    Term.FunOf(
-                        param.target,
+                    Term.Fun(
+                        binders,
+                        params,
                         result.target,
                     ),
-                    Value.Fun(
-                        param.target,
-                        param.type,
-                    ) { arg -> values.add(lazyOf(arg)).eval(resultType) },
+                    Value.Type,
                 )
             }
         }
 
-        // e ( e )  ⇒  v
+        // fun( e , … , e ) = e  ⇒  v → v
+        is Concrete.FunOf -> {
+            extending {
+                val values = values
+                val binders = mutableListOf<Pattern>()
+                val params = mutableListOf<Value>()
+                for (param in term.params) {
+                    val param1 = synthPattern(param)
+                    binders.add(param1.target)
+                    params.add(param1.type)
+                    extend(param1.target, param.span, term.scope, param1.type)
+                }
+                val body = synthTerm(term.body)
+                for ((param1, param) in params zip term.params) {
+                    ensureSolved(param1, param.span)
+                }
+                val resultType = size.quote(body.type)
+                Anno(
+                    Term.FunOf(
+                        binders,
+                        body.target,
+                    ),
+                    Value.Fun(
+                        binders,
+                        params,
+                    ) { args -> values.addAll(args).eval(resultType) },
+                )
+            }
+        }
+
+        // e ( e , … , e )  ⇒  v
         is Concrete.Call -> {
             val func = synthTerm(term.func)
             when (val funcType = force(func.type)) {
                 is Value.Fun -> {
-                    val arg = checkTerm(term.arg, funcType.param)
-                    val argV = values.eval(arg.target)
+                    val args = mutableListOf<Term>()
+                    val argsV = mutableListOf<Value>()
+                    for ((arg, paramType) in term.args zip funcType.params) {
+                        val arg1 = checkTerm(arg, paramType)
+                        args.add(arg1.target)
+                        argsV.add(values.eval(arg1.target))
+                    }
+                    val resultType = funcType.result(argsV)
                     Anno(
                         Term.Call(
                             func.target,
-                            arg.target,
+                            args,
                         ),
-                        funcType.result(argV),
+                        resultType,
                     )
                 }
 
                 else -> {
-                    val _ = synthTerm(term.arg)
+                    for (arg in term.args) {
+                        val _ = synthTerm(arg)
+                    }
                     val actualType = stringify(size.quote(funcType), 0u)
                     diagnoseTerm("Expected function type, but found `$actualType`", term.func.span, Severity.ERROR)
                 }
@@ -706,9 +783,9 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
                     second.target,
                 ),
                 Value.Pair(
-                    Pattern.Var("$$size"),
+                    "$$size",
                     first.type,
-                ) { first -> values.add(lazyOf(first)).eval(secondType) },
+                ) { first -> values.add(first).eval(secondType) },
             )
         }
 
@@ -765,96 +842,94 @@ private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term
     return when (term) {
         // let x = e e  ⇐  v
         is Concrete.Let -> {
-            val binder: Anno<Pattern>
-            val body: Anno<Term>
-            extending {
-                binder = synthPattern(term.binder)
-                body = checkTerm(term.body, expected)
-            }
+            val binder = synthPattern(term.binder)
             val init = checkTerm(term.init, binder.type)
-            ensureSolved(binder.type, term.binder.span)
-            Anno(
-                Term.Let(
-                    binder.target,
-                    init.target,
-                    body.target,
-                ),
-                body.type,
-            )
+            extending {
+                extend(binder.target, term.binder.span, term.scope, binder.type)
+                val body = checkTerm(term.next, expected)
+                ensureSolved(binder.type, term.binder.span)
+                Anno(
+                    Term.Let(
+                        binder.target,
+                        init.target,
+                        body.target,
+                    ),
+                    expected,
+                )
+            }
         }
 
-        // fun x(e) → e e  ⇐  v
+        // fun x( e, … , e ) → e = e e  ⇐  v
         is Concrete.LetFun -> {
-            val param: Anno<Pattern>
+            val binders = mutableListOf<Pattern>()
+            val params = mutableListOf<Term>()
+            val paramsV = mutableListOf<Value>()
             val body: Anno<Term>
-            val result: Anno<Term>
             val funType: Value
             extending {
-                param = synthPattern(term.param)
-                val values = values
-                result = checkTerm(term.result, Value.Type)
+                val values1 = values
+                for (param in term.params) {
+                    val param1 = synthPattern(param)
+                    binders.add(param1.target)
+                    params.add(size.quote(param1.type))
+                    paramsV.add(param1.type)
+                    extend(param1.target, param.span, term.bodyScope, param1.type)
+                }
+                val result = checkTerm(term.result, Value.Type)
                 val resultV = values.eval(result.target)
                 funType = Value.Fun(
-                    param.target,
-                    param.type,
-                ) { arg -> values.add(lazyOf(arg)).eval(result.target) }
-                extend(term.name, funType)
+                    binders,
+                    paramsV,
+                ) { args -> values1.addAll(args).eval(result.target) }
+                extend(term.name.text, term.name.span, term.bodyScope, funType)
                 body = checkTerm(term.body, resultV)
-                ensureSolved(param.type, term.param.span)
+                for ((paramV, param) in paramsV zip term.params) {
+                    ensureSolved(paramV, param.span)
+                }
             }
-            val paramType = size.quote(param.type)
             extending {
-                extend(term.name, funType)
+                extend(term.name.text, term.name.span, term.nextScope, funType)
                 val next = checkTerm(term.next, expected)
                 Anno(
                     Term.LetFun(
                         term.name.text,
-                        param.target,
-                        paramType,
+                        binders,
+                        params,
                         body.target,
                         next.target,
                     ),
-                    expected,
+                    next.type,
                 )
             }
         }
 
-        // e → e  ⇐  type
-        is Concrete.Fun if expected is Value.Type -> {
-            val param: Anno<Pattern>
-            val result: Anno<Term>
-            extending {
-                param = synthPattern(term.param)
-                result = checkTerm(term.result, Value.Type)
-                ensureSolved(param.type, term.param.span)
-            }
-            val paramType = size.quote(param.type)
-            Anno(
-                Term.Fun(
-                    param.target,
-                    paramType,
-                    result.target,
-                ),
-                expected,
-            )
-        }
-
-        // e → e  ⇐  v → v
-        is Concrete.Fun if expected is Value.Fun -> {
-            val resultType = expected.result(Value.Var("$$size", size))
-            extending {
-                val param = checkPattern(term.param, expected.param)
-                val result = checkTerm(term.result, resultType)
-                ensureSolved(param.type, term.param.span)
-                Anno(
-                    Term.FunOf(
-                        param.target,
-                        result.target,
-                    ),
-                    expected,
-                )
-            }
-        }
+        // TODO
+        // fun( e , … , e ) = e  ⇐  v → v
+        // is Concrete.FunOf if expected is Value.Fun -> {
+        //     extending {
+        //         val _ = values
+        //         val binders = mutableListOf<Pattern>()
+        //         val params = mutableListOf<Value>()
+        //         for (param in term.params) {
+        //             val param1 = synthPattern(param)
+        //             binders.add(param1.target)
+        //             params.add(param1.type)
+        //             extend(param1.target, param.span, term.scope, param1.type)
+        //         }
+        //         val result = synthTerm(term.body)
+        //         for ((param1, param) in params zip term.params) {
+        //             ensureSolved(param1, param.span)
+        //         }
+        //         val _ = size.quote(result.type)
+        //         Anno(
+        //             Term.FunOf(
+        //                 binders,
+        //                 result.target,
+        //             ),
+        //             expected,
+        //         )
+        //     }
+        // }
 
         // e , e  ⇐  type
         is Concrete.Pair if expected is Value.Type -> {

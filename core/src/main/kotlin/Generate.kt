@@ -19,10 +19,7 @@ private fun escapeName(name: String): String {
 }
 
 private fun GenerateState.generatePattern(pattern: Pattern) {
-    return when (pattern) {
-        is Pattern.Var -> append(escapeName(pattern.text))
-        is Pattern.Err -> error("Unexpected pattern: $pattern")
-    }
+    append(escapeName(pattern))
 }
 
 private fun GenerateState.generateTerm(term: Term) {
@@ -61,7 +58,7 @@ private fun GenerateState.generateTerm(term: Term) {
             // TODO: use native statements
             val name = escapeName(term.name)
             append("(() => {\nconst $name = (")
-            generatePattern(term.binder)
+            for (binder in term.binders) generatePattern(binder)
             append(") => {\nreturn ")
             generateTerm(term.body)
             append(";\n};\nreturn ")
@@ -72,16 +69,16 @@ private fun GenerateState.generateTerm(term: Term) {
         is Term.Fun -> append("\"${stringify(term, 0u)}\"")
         is Term.FunOf -> {
             append("((")
-            generatePattern(term.binder)
+            for (binder in term.binders) generatePattern(binder)
             append(") => {\nreturn ")
-            generateTerm(term.result)
+            generateTerm(term.body)
             append(";\n})")
         }
 
         is Term.Call -> {
             generateTerm(term.func)
             append("(")
-            generateTerm(term.arg)
+            for (arg in term.args) generateTerm(arg)
             append(")")
         }
 

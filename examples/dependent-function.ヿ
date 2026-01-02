@@ -1,12 +1,11 @@
-let id : (a-t : type) → (a : a-t) → a-t = a-t → a → a
+let id-curried = fun(a-t : type) = fun(a : a-t) = a
 
-let id-bool : (a : bool) → bool = id(bool)
-let id-bool-true : bool = id(bool)(true)
+let id-bool : bool = id-curried(bool)(true)
+let id-float64 : float64 = id-curried(float64)(3.14)
 
-let id-int64 : (a : int64) → int64 = id(int64)
-let id-int64-1 : int64 = id(int64)(1)
+let id = fun(a-t : type, a : a-t) = a
 
-let id-type : (a : type) → type = id(type)
-let id-type-type : type = id(type)(type)
+let id-bool : bool = id(bool, true)
+let id-float64 : float64 = id(float64, 3.14)
 
 type

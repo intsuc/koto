@@ -44,29 +44,32 @@ fun stringify(term: Term, minBp: UInt): String {
 
         is Term.LetFun -> {
             val name = term.name
-            val binder = stringifyPattern(term.binder, 0u)
+            val binders = term.binders.joinToString(", ") { binder -> stringifyPattern(binder, 0u) }
             val body = stringify(term.body, 0u)
             val next = stringify(term.next, 0u)
-            "fun $name($binder) = $body $next"
+            "fun $name($binders) = $body $next"
         }
 
         is Term.Fun -> {
-            val binder = stringifyPattern(term.binder, 0u)
-            val param = stringify(term.param, 51u)
+            val params = term.binders.zip(term.params).joinToString(", ") { (binder, param) ->
+                val binder = stringifyPattern(binder, 0u)
+                val param = stringify(param, 50u)
+                "$binder : $param"
+            }
             val result = stringify(term.result, 50u)
-            p(minBp, 50u, "$binder : $param → $result")
+            p(minBp, 50u, "fun($params) → $result")
         }
 
         is Term.FunOf -> {
-            val binder = stringifyPattern(term.binder, 0u)
-            val result = stringify(term.result, 50u)
-            p(minBp, 50u, "$binder → $result")
+            val binders = term.binders.joinToString(", ") { binder -> stringifyPattern(binder, 0u) }
+            val body = stringify(term.body, 50u)
+            p(minBp, 50u, "fun($binders) = $body")
         }
 
         is Term.Call -> {
             val func = stringify(term.func, 30u)
-            val arg = stringify(term.arg, 0u)
-            "$func($arg)"
+            val args = term.args.joinToString(", ") { arg -> stringify(arg, 0u) }
+            "$func($args)"
         }
 
         is Term.Pair -> {
@@ -96,10 +99,7 @@ fun stringify(term: Term, minBp: UInt): String {
 }
 
 private fun stringifyPattern(pattern: Pattern, minBp: UInt): String {
-    return when (pattern) {
-        is Pattern.Var -> pattern.text
-        is Pattern.Err -> "error"
-    }
+    return pattern
 }
 
 private fun p(minBp: UInt, bp: UInt, s: String): String {
