@@ -2,7 +2,7 @@ package koto.lsp
 
 import koto.core.elaborate
 import koto.core.parse
-import koto.core.stringify
+import koto.core.util.stringify
 import org.eclipse.lsp4j.*
 import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.services.LanguageClient

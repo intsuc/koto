@@ -2,10 +2,7 @@ package koto.core
 
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
-import koto.core.util.Diagnostic
-import koto.core.util.IntervalTree
-import koto.core.util.Severity
-import koto.core.util.Span
+import koto.core.util.*
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract

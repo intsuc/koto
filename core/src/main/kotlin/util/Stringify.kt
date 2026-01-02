@@ -1,4 +1,7 @@
-package koto.core
+package koto.core.util
+
+import koto.core.Pattern
+import koto.core.Term
 
 fun stringify(term: Term, minBp: UInt): String {
     return when (term) {
