@@ -13,6 +13,12 @@ sealed interface Concrete {
         override val span: Span,
     ) : Concrete
 
+    // ""
+    data class StrOf(
+        val value: String,
+        override val span: Span,
+    ) : Concrete
+
     // let e = e e
     data class Let(
         val binder: Concrete,
@@ -172,6 +178,71 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
             skip() // )
         }
         return inner
+    }
+
+    if (peekable() && peek() == '"') {
+        val start = cursor
+        skip() // "
+        val builder = StringBuilder()
+        while (peekable()) {
+            when (val c = peek()) {
+                '"' -> {
+                    skip() // "
+                    break
+                }
+
+                '\n', '\r' -> {
+                    diagnostics.add(Diagnostic("Unfinished string literal", Span(cursor, cursor + 1u), Severity.ERROR))
+                    break
+                }
+
+                '\\' -> {
+                    skip() // \
+                    if (!peekable()) {
+                        diagnostics.add(Diagnostic("Unfinished escape sequence", Span(cursor - 1u, cursor), Severity.ERROR))
+                        break
+                    }
+                    when (val escaped = peek()) {
+                        'n' -> {
+                            builder.append('\n')
+                            skip()
+                        }
+
+                        'r' -> {
+                            builder.append('\r')
+                            skip()
+                        }
+
+                        't' -> {
+                            builder.append('\t')
+                            skip()
+                        }
+
+                        '\\' -> {
+                            builder.append('\\')
+                            skip()
+                        }
+
+                        '"' -> {
+                            builder.append('"')
+                            skip()
+                        }
+
+                        else -> {
+                            diagnostics.add(Diagnostic("Unknown escape sequence: \\$escaped", Span(cursor - 1u, cursor + 1u), Severity.ERROR))
+                            builder.append(escaped)
+                            skip()
+                        }
+                    }
+                }
+
+                else -> {
+                    builder.append(c)
+                    skip()
+                }
+            }
+        }
+        return Concrete.StrOf(builder.toString(), Span(start, cursor))
     }
 
     val (text, span) = parseWord()

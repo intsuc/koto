@@ -48,6 +48,12 @@ sealed interface Term {
         val value: Double,
     ) : Term
 
+    data object Str : Term
+
+    data class StrOf(
+        val value: String,
+    ) : Term
+
     data class Let(
         val binder: Pattern,
         val init: Term,
@@ -130,6 +136,12 @@ sealed interface Value {
 
     data class Float64Of(
         val value: Double,
+    ) : Value
+
+    data object Str : Value
+
+    data class StrOf(
+        val value: String,
     ) : Value
 
     data class Fun(
@@ -225,6 +237,8 @@ private fun PersistentList<Lazy<Value>>.eval(term: Term): Value {
         is Term.Int64Of -> Value.Int64Of(term.value)
         is Term.Float64 -> Value.Float64
         is Term.Float64Of -> Value.Float64Of(term.value)
+        is Term.Str -> Value.Str
+        is Term.StrOf -> Value.StrOf(term.value)
         is Term.Let -> add(lazy { eval(term.init) }).eval(term.body)
         is Term.LetFun -> {
             val func = Value.FunOf(term.binder) { arg -> add(lazyOf(arg)).eval(term.body) }
@@ -289,6 +303,8 @@ private fun Level.quote(value: Value): Term {
         is Value.Int64Of -> Term.Int64Of(value.value)
         is Value.Float64 -> Term.Float64
         is Value.Float64Of -> Term.Float64Of(value.value)
+        is Value.Str -> Term.Str
+        is Value.StrOf -> Term.StrOf(value.value)
         is Value.Fun -> Term.Fun(
             value.binder,
             quote(value.param),
@@ -389,6 +405,8 @@ private fun Level.conv(v1: Value, v2: Value): ConvResult {
         v1 is Value.Int64Of && v2 is Value.Int64Of -> (v1.value == v2.value).toConvResult()
         v1 is Value.Float64 && v2 is Value.Float64 -> ConvResult.YES
         v1 is Value.Float64Of && v2 is Value.Float64Of -> (v1.value == v2.value).toConvResult()
+        v1 is Value.Str && v2 is Value.Str -> ConvResult.YES
+        v1 is Value.StrOf && v2 is Value.StrOf -> (v1.value == v2.value).toConvResult()
         v1 is Value.Fun && v2 is Value.Fun -> conv(v1.param, v2.param) then {
             Value.Var("$$this", this).let { x ->
                 (this + 1u).conv(v1.result(x), v2.result(x))
@@ -554,6 +572,7 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
             "true" -> Anno(Term.BoolOf(true), Value.Bool)
             "int64" -> Anno(Term.Int64, Value.Type)
             "float64" -> Anno(Term.Float64, Value.Type)
+            "str" -> Anno(Term.Str, Value.Type)
             else -> when (val level = entries.indexOfLast { it.name == term.text }) {
                 -1 -> term.text.toLongOrNull()?.let { value ->
                     Anno(Term.Int64Of(value), Value.Int64)
@@ -569,6 +588,9 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
                 }
             }
         }
+
+        // ""  ⇒  str
+        is Concrete.StrOf -> Anno(Term.StrOf(term.value), Value.Str)
 
         // let x = e e  ⇒  v
         is Concrete.Let -> {

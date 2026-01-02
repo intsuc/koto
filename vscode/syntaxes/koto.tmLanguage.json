@@ -13,8 +13,33 @@
       "name": "keyword.koto"
     },
     {
-      "match": "\\b(?:type|bool|false|true|int64|float64)\\b",
+      "match": "\\b(?:type|bool|false|true|int64|float64|str)\\b",
       "name": "constant.language.koto"
+    },
+    {
+      "begin": "\"",
+      "beginCaptures": {
+        "0": {
+          "name": "string.quoted.double.koto"
+        }
+      },
+      "end": "\"",
+      "endCaptures": {
+        "0": {
+          "name": "string.quoted.double.koto"
+        }
+      },
+      "name": "string.quoted.double.koto",
+      "patterns": [
+        {
+          "match": "\\\\[nrt\"\\\\]",
+          "name": "constant.character.escape.koto"
+        },
+        {
+          "match": "\\\\.",
+          "name": "invalid.illegal.koto"
+        }
+      ]
     },
     {
       "match": "-?[0-9.]+",

@@ -1,0 +1,13 @@
+let str-type : type = str
+
+let empty : str = ""
+let hello = "hello"
+let hello = "こんにちは"
+
+let escape = "\""
+let escape = "\\"
+let escape = "\n"
+let escape = "\r"
+let escape = "\t"
+
+type

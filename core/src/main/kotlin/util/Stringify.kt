@@ -19,6 +19,22 @@ fun stringify(term: Term, minBp: UInt): String {
         is Term.Int64Of -> "${term.value}"
         is Term.Float64 -> "float64"
         is Term.Float64Of -> "${term.value}"
+        is Term.Str -> "str"
+        is Term.StrOf -> {
+            val builder = StringBuilder()
+            for (c in term.value) {
+                when (c) {
+                    '\n' -> builder.append("\\n")
+                    '\r' -> builder.append("\\r")
+                    '\t' -> builder.append("\\t")
+                    '\\' -> builder.append("\\\\")
+                    '\"' -> builder.append("\\\"")
+                    else -> builder.append(c)
+                }
+            }
+            "\"$builder\""
+        }
+
         is Term.Let -> {
             val binder = stringifyPattern(term.binder, 0u)
             val init = stringify(term.init, 0u)
