@@ -1,10 +1,10 @@
 # ヿ
 
-ヿ (こと, /koto/) is a heterogeneous systems programming language with first-class types and dynamic type checking.
+ヿ (こと, /koto/) is a heterogeneous programming language with first-class types and dynamic type checking.
 
 ## High-level goals
 
-- Provide low-level, predictable control suitable for real-time software (operating systems, game engines, audio processors).
+- Provide low-level, predictable control suitable for real-time software (game engines, audio processors).
 - Enable code sharing and interoperability across different execution environments (e.g. CPU/GPU).
 - Provide first-class runtime compilation capabilities.
 - Minimize the need for users to write proofs by hand where possible.
