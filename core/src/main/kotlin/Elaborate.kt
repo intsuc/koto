@@ -491,11 +491,13 @@ private fun ElaborateState.diagnosePattern(
     span: Span,
     severity: Severity,
     expected: Value = Value.Err,
+    pattern: Pattern = Pattern.Err,
 ): Anno<Pattern> {
     diagnostics.add(Diagnostic(message, span, severity))
-    return Anno(Pattern.Err, expected)
+    return Anno(pattern, expected)
 }
 
+// TODO: collect entries to be added later
 private fun ElaborateState.synthPattern(pattern: Concrete): Anno<Pattern> {
     return when (pattern) {
         // x  ⇒  v
@@ -545,7 +547,7 @@ private fun ElaborateState.checkPattern(pattern: Concrete, expected: Value): Ann
                 ConvResult.UNKNOWN -> {
                     val expectedType = stringify(size.quote(expected), 0u)
                     val actualType = stringify(size.quote(synthesized.type), 0u)
-                    diagnosePattern("Expected `${expectedType}` but found `${actualType}`", pattern.span, Severity.WARNING, expected)
+                    diagnosePattern("Expected `${expectedType}` but found `${actualType}`", pattern.span, Severity.WARNING, expected, synthesized.target)
                 }
             }
         }
@@ -557,9 +559,10 @@ private fun ElaborateState.diagnoseTerm(
     span: Span,
     severity: Severity,
     expected: Value = Value.Err,
+    term: Term = Term.Err,
 ): Anno<Term> {
     diagnostics.add(Diagnostic(message, span, severity))
-    return Anno(Term.Err, expected)
+    return Anno(term, expected)
 }
 
 private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
@@ -919,7 +922,7 @@ private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term
                 ConvResult.UNKNOWN -> {
                     val expectedType = stringify(size.quote(expected), 0u)
                     val actualType = stringify(size.quote(synthesized.type), 0u)
-                    diagnoseTerm("Expected `${expectedType}` but found `${actualType}`", term.span, Severity.WARNING, expected)
+                    diagnoseTerm("Expected `${expectedType}` but found `${actualType}`", term.span, Severity.WARNING, expected, synthesized.target)
                 }
             }
         }
