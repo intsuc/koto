@@ -16,6 +16,12 @@ typealias Level = UInt
 // TODO: support complex patterns
 typealias Pattern = String
 
+data class Telescope(
+    val values: PersistentList<Value>,
+    val binders: List<Pattern>,
+    val types: List<Term>,
+)
+
 sealed interface Term {
     data object Type : Term
 
@@ -136,14 +142,11 @@ sealed interface Value {
         val value: String,
     ) : Value
 
-    // TODO: use telescope
     data class Fun(
-        val binders: List<Pattern>,
-        val params: List<Value>,
+        val telescope: Telescope,
         val result: (args: List<Value>) -> Value,
     ) : Value
 
-    // TODO: use telescope
     data class FunOf(
         val binders: List<Pattern>,
         val result: (args: List<Value>) -> Value,
@@ -239,12 +242,13 @@ private fun PersistentList<Value>.eval(term: Term): Value {
 
         is Term.Var -> {
             val level = (lastIndex.toUInt() - term.index).toInt()
-            this[level]
+            requireNotNull(getOrNull(level)) {
+                "unbound variable: ${term.text} at index ${term.index}"
+            }
         }
 
         is Term.Fun -> Value.Fun(
-            term.binders,
-            term.params.map { param -> eval(param) },
+            Telescope(this, term.binders, term.params),
         ) { args -> addAll(args).eval(term.result) }
 
         is Term.FunOf -> Value.FunOf(
@@ -298,14 +302,17 @@ private fun Level.quote(value: Value): Term {
         is Value.Str -> Term.Str
         is Value.StrOf -> Term.StrOf(value.value)
         is Value.Fun -> {
-            val params = value.params.mapIndexed { i, param ->
-                (this + i.toUInt()).quote(param)
+            var args = persistentListOf<Value>()
+            val params = value.telescope.binders.zip(value.telescope.types).map { (binder, param) ->
+                val paramV = value.telescope.values.addAll(args).eval(param)
+                val level = this + args.size.toUInt()
+                val param = level.quote(paramV)
+                args = args.add(Value.Var(binder, level))
+                param
             }
-            val result = (this + value.params.size.toUInt()).quote(value.result((0u until value.params.size.toUInt()).map { i ->
-                Value.Var(value.binders[i.toInt()], this + i)
-            }))
+            val result = (this + value.telescope.binders.size.toUInt()).quote(value.result(args))
             Term.Fun(
-                value.binders,
+                value.telescope.binders,
                 params,
                 result,
             )
@@ -421,11 +428,22 @@ private fun Level.conv(v1: Value, v2: Value): ConvResult {
         v1 is Value.Float64Of && v2 is Value.Float64Of -> (v1.value == v2.value).toConvResult()
         v1 is Value.Str && v2 is Value.Str -> ConvResult.YES
         v1 is Value.StrOf && v2 is Value.StrOf -> (v1.value == v2.value).toConvResult()
-        v1 is Value.Fun && v2 is Value.Fun -> convZip(v1.params, v2.params) then {
-            val args = (0u until v1.params.size.toUInt()).map { i ->
-                Value.Var("$$this", this + i)
+        v1 is Value.Fun && v2 is Value.Fun -> {
+            if (v1.telescope.binders.size != v2.telescope.binders.size) return ConvResult.NO
+            var args = persistentListOf<Value>()
+            var result = ConvResult.YES
+            for (i in v1.telescope.types.indices) {
+                result = result then {
+                    val param1 = v1.telescope.values.addAll(args).eval(v1.telescope.types[i])
+                    val param2 = v2.telescope.values.addAll(args).eval(v2.telescope.types[i])
+                    conv(param1, param2)
+                }
+                if (result != ConvResult.YES) return result
+                args = args.add(Value.Var("$$this", this + i.toUInt()))
             }
-            (this + v1.params.size.toUInt()).conv(v1.result(args), v2.result(args))
+            result then {
+                (this + v1.telescope.binders.size.toUInt()).conv(v1.result(args), v2.result(args))
+            }
         }
 
         v1 is Value.FunOf && v2 is Value.FunOf -> {
@@ -667,8 +685,7 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
                 val result = checkTerm(term.result, Value.Type)
                 val resultV = values.eval(result.target)
                 funType = Value.Fun(
-                    binders,
-                    paramsV,
+                    Telescope(values1, binders, params),
                 ) { args -> values1.addAll(args).eval(result.target) }
                 extend(term.name.text, term.name.span, term.bodyScope, funType)
                 body = checkTerm(term.body, resultV)
@@ -725,15 +742,17 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
             extending {
                 val values = values
                 val binders = mutableListOf<Pattern>()
-                val params = mutableListOf<Value>()
+                val params = mutableListOf<Term>()
+                val paramsV = mutableListOf<Value>()
                 for (param in term.params) {
                     val param1 = synthPattern(param)
                     binders.add(param1.target)
-                    params.add(param1.type)
+                    params.add(size.quote(param1.type))
+                    paramsV.add(param1.type)
                     extend(param1.target, param.span, term.scope, param1.type)
                 }
                 val body = synthTerm(term.body)
-                for ((param1, param) in params zip term.params) {
+                for ((param1, param) in paramsV zip term.params) {
                     ensureSolved(param1, param.span)
                 }
                 val resultType = size.quote(body.type)
@@ -743,8 +762,7 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
                         body.target,
                     ),
                     Value.Fun(
-                        binders,
-                        params,
+                        Telescope(values, binders, params),
                     ) { args -> values.addAll(args).eval(resultType) },
                 )
             }
@@ -757,10 +775,21 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
                 is Value.Fun -> {
                     val args = mutableListOf<Term>()
                     val argsV = mutableListOf<Value>()
-                    for ((arg, paramType) in term.args zip funcType.params) {
-                        val arg1 = checkTerm(arg, paramType)
+                    var paramValues = funcType.telescope.values
+                    for ((arg, param) in term.args zip funcType.telescope.types) {
+                        val paramV = paramValues.eval(param)
+                        val arg1 = checkTerm(arg, paramV)
                         args.add(arg1.target)
-                        argsV.add(values.eval(arg1.target))
+                        val argV = values.eval(arg1.target)
+                        argsV.add(argV)
+                        paramValues = paramValues.add(argV)
+                    }
+                    if (term.args.size < funcType.telescope.types.size) {
+                        val _ = diagnoseTerm("Too few arguments", term.span, Severity.ERROR)
+                        repeat(funcType.telescope.types.size - term.args.size) {
+                            args.add(Term.Err)
+                            argsV.add(Value.Err)
+                        }
                     }
                     val resultType = funcType.result(argsV)
                     Anno(
@@ -887,8 +916,7 @@ private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term
                 val result = checkTerm(term.result, Value.Type)
                 val resultV = values.eval(result.target)
                 funType = Value.Fun(
-                    binders,
-                    paramsV,
+                    Telescope(values1, binders, params),
                 ) { args -> values1.addAll(args).eval(result.target) }
                 extend(term.name.text, term.name.span, term.bodyScope, funType)
                 body = checkTerm(term.body, resultV)
@@ -912,33 +940,35 @@ private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term
             }
         }
 
-        // TODO
         // fun( e , … , e ) = e  ⇐  v → v
-        // is Concrete.FunOf if expected is Value.Fun -> {
-        //     extending {
-        //         val _ = values
-        //         val binders = mutableListOf<Pattern>()
-        //         val params = mutableListOf<Value>()
-        //         for (param in term.params) {
-        //             val param1 = synthPattern(param)
-        //             binders.add(param1.target)
-        //             params.add(param1.type)
-        //             extend(param1.target, param.span, term.scope, param1.type)
-        //         }
-        //         val result = synthTerm(term.body)
-        //         for ((param1, param) in params zip term.params) {
-        //             ensureSolved(param1, param.span)
-        //         }
-        //         val _ = size.quote(result.type)
-        //         Anno(
-        //             Term.FunOf(
-        //                 binders,
-        //                 result.target,
-        //             ),
-        //             expected,
-        //         )
-        //     }
-        // }
+        is Concrete.FunOf if expected is Value.Fun && term.params.size == expected.telescope.binders.size -> {
+            extending {
+                val binders = mutableListOf<Pattern>()
+                val params = mutableListOf<Value>()
+                var args = persistentListOf<Value>()
+                for ((param, paramType) in term.params zip expected.telescope.types) {
+                    val paramTypeV = expected.telescope.values.addAll(args).eval(paramType)
+                    val param1 = checkPattern(param, paramTypeV)
+                    binders.add(param1.target)
+                    params.add(param1.type)
+                    val level = expected.telescope.values.size.toUInt() + args.size.toUInt()
+                    args = args.add(Value.Var(param1.target, level))
+                    extend(param1.target, param.span, term.scope, paramTypeV)
+                }
+                val resultType = expected.result(args)
+                val result = checkTerm(term.body, resultType)
+                for ((param1, param) in params zip term.params) {
+                    ensureSolved(param1, param.span)
+                }
+                Anno(
+                    Term.FunOf(
+                        binders,
+                        result.target,
+                    ),
+                    expected,
+                )
+            }
+        }
 
         // { x = e , … , x = e }  ⇐  type
         is Concrete.Record if expected is Value.Type -> {

@@ -1,9 +1,9 @@
-let id-curried = fun(a-t : type) = fun(a : a-t) = a
+let id-curried : fun(a-t : type) → fun(a : a-t) → a-t = fun(a-t : type) = fun(a : a-t) = a
 
 let id-bool : bool = id-curried(bool)(true)
 let id-float64 : float64 = id-curried(float64)(3.14)
 
-let id = fun(a-t : type, a : a-t) = a
+let id : fun(a-t : type, a : a-t) → a-t = fun(a-t : type, a : a-t) = a
 
 let id-bool : bool = id(bool, true)
 let id-float64 : float64 = id(float64, 3.14)
