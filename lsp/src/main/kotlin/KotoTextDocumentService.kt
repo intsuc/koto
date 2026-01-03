@@ -61,8 +61,8 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
         if (expectedType == null && actualType == null) {
             return completedFuture(null)
         }
-        val expectedString = expectedType?.let { "expected : ${stringify(it, 0u)}\n" } ?: ""
-        val actualString = actualType?.let { "actual   : ${stringify(it, 0u)}\n" } ?: ""
+        val expectedString = expectedType?.let { "expected = ${stringify(it, 0u)}\n" } ?: ""
+        val actualString = actualType?.let { "actual   = ${stringify(it, 0u)}\n" } ?: ""
         return completedFuture(
             Hover(
                 MarkupContent(
