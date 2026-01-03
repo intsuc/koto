@@ -72,17 +72,20 @@ fun stringify(term: Term, minBp: UInt): String {
             "$func($args)"
         }
 
-        is Term.Pair -> {
-            val binder = stringifyPattern(term.binder, 0u)
-            val first = stringify(term.first, 101u)
-            val second = stringify(term.second, 100u)
-            p(minBp, 100u, "$binder : $first, $second")
+        is Term.Record -> {
+            val fields = term.fields.entries.joinToString(", ") { (key, value) ->
+                val value = stringify(value, 0u)
+                "$key = $value"
+            }
+            "{ $fields }"
         }
 
-        is Term.PairOf -> {
-            val first = stringify(term.first, 101u)
-            val second = stringify(term.second, 100u)
-            p(minBp, 100u, "$first, $second")
+        is Term.RecordOf -> {
+            val fields = term.fields.entries.joinToString(", ") { (key, value) ->
+                val value = stringify(value, 0u)
+                "$key = $value"
+            }
+            "{ $fields }"
         }
 
         is Term.Refine -> {

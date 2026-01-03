@@ -63,11 +63,9 @@ sealed interface Concrete {
         override val span: Span,
     ) : Concrete
 
-    // e , e
-    data class Pair(
-        val first: Concrete,
-        val second: Concrete,
-        val scope: Span,
+    // { x = e , … , x = e }
+    data class Record(
+        val fields: List<Pair<Ident, Concrete>>,
         override val span: Span,
     ) : Concrete
 
@@ -188,6 +186,43 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
         return inner
     }
 
+    if (peekable() && peek() == '{') {
+        val start = cursor
+        skip() // {
+        skipWhitespace()
+        val fields = mutableListOf<Pair<Concrete.Ident, Concrete>>()
+        while (peekable() && peek() != '}') {
+            val (nameText, nameSpan) = parseWord()
+            val name = Concrete.Ident(nameText, nameSpan)
+            skipWhitespace()
+            val colonStart = cursor
+            if (!peekable() || peek() != '=') {
+                val _ = diagnoseTerm("Expected `=` after record field name", Span(colonStart, colonStart + 1u))
+            } else {
+                skip() // =
+            }
+            skipWhitespace()
+            val value = parseAtLeast(0u)
+            fields.add(name to value)
+            skipWhitespace()
+            if (!peekable() || peek() != ',') {
+                break
+            }
+            skip() // ,
+            skipWhitespace()
+        }
+        val endStart = cursor
+        if (!peekable() || peek() != '}') {
+            val _ = diagnoseTerm("Expected `}`", Span(endStart, endStart + 1u))
+        } else {
+            skip() // }
+        }
+        return Concrete.Record(
+            fields = fields,
+            span = Span(start, cursor),
+        )
+    }
+
     if (peekable() && peek() == '"') {
         val start = cursor
         skip() // "
@@ -287,7 +322,7 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
         "fun" -> {
             skipWhitespace()
             if (peekable() && peek() == '(') {
-                val params = parseList(0u)
+                val params = parseList(0u, '(', ')')
                 skipWhitespace()
                 if (peekable() && peek() == '→') {
                     skip() // →
@@ -321,7 +356,7 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
             } else {
                 val (nameText, nameSpan) = parseWord()
                 val _ = Concrete.Ident(nameText, nameSpan)
-                val params = parseList(0u)
+                val params = parseList(0u, '(', ')')
                 skipWhitespace()
                 val arrowStart = cursor
                 if (!peekable() || peek() != '→') {
@@ -401,7 +436,7 @@ private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete 
 
     // h ( e , … , e )
     if (peekable() && peek() == '(') {
-        val args = parseList(0u)
+        val args = parseList(0u, '(', ')')
         val next = Concrete.Call(
             func = head,
             args = args,
@@ -440,15 +475,15 @@ private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete 
     return head
 }
 
-private fun ParseState.parseList(minBp: UInt): List<Concrete> {
+private fun ParseState.parseList(minBp: UInt, prefix: Char, postfix: Char): List<Concrete> {
     val items = mutableListOf<Concrete>()
-    if (!peekable() || peek() != '(') {
-        val _ = diagnoseTerm("Expected `(`", Span(cursor, cursor + 1u))
+    if (!peekable() || peek() != prefix) {
+        val _ = diagnoseTerm("Expected `$prefix`", Span(cursor, cursor + 1u))
     } else {
-        skip() // (
+        skip() // prefix
     }
     skipWhitespace()
-    while (peekable() && peek() != ')') {
+    while (peekable() && peek() != postfix) {
         val item = parseAtLeast(minBp)
         items.add(item)
         skipWhitespace()
@@ -458,10 +493,10 @@ private fun ParseState.parseList(minBp: UInt): List<Concrete> {
         skip() // ,
         skipWhitespace()
     }
-    if (!peekable() || peek() != ')') {
-        val _ = diagnoseTerm("Expected `)`", Span(cursor, cursor + 1u))
+    if (!peekable() || peek() != postfix) {
+        val _ = diagnoseTerm("Expected `$postfix`", Span(cursor, cursor + 1u))
     } else {
-        skip() // )
+        skip() // postfix
     }
     return items
 }

@@ -10,18 +10,6 @@ let pi = 3.14159
 let -pi = -3.14159
 let pi : float64 = 3.14159
 
-# let pair = 1, 2
-# let pair : (- : int64), int64 = 1, 2
-# let pair3 = 1, 2, 3
-# let pair3 : (- : int64), (- : int64), int64 = 1, 2, 3
-# let pair3 : (- : int64), ((- : int64), int64) = 1, 2, 3
-# let pair3 : (- : (- : int64), int64), int64 = (1, 2), 3
-# let d-pair : (a : type), a = int64, 1
-# let d-pair3 : (a : type), (- : int64), a = bool, 1, true
-# let d-pair3 : (a : type), (b : type), a = bool, int64, true
-# let d-pair3 : (a : type), (b : type), b = bool, int64, 1
-# let d-pair4 : (a : type), (b : type), (- : a), b = bool, int64, true, 1
-
 let func : fun(- : int64) → int64 = fun(x : int64) = x
 let func3 : fun(- : int64) → fun(- : int64) → int64 = fun(x) = fun(y) = y
 let func3 : fun(- : int64) → (fun(- : int64) → int64) = fun(x) = fun(y) = y
@@ -45,12 +33,12 @@ let and = fun(x : bool, y : bool) = if x then y else false
 let or  = fun(x : bool, y : bool) = if x then true else y
 let xor = fun(x : bool, y : bool) = if x then if y then false else true else y
 
-# let id = x → x
-# let id = x → if x then x : int64 else 0
+# let id = fun(x) = x
+# let id = fun(x) = if x then x : int64 else 0
 let id = fun(x) = if x then x else x
 let id = fun(x) = (x : int64)
 let id = fun(x : int64) = x
-let id : fun(- : int64) → int64 = fun(x) = x
+# let id : fun(- : int64) → int64 = fun(x) = x
 let id : fun(- : int64) → int64 = fun(x : int64) = x
 let - : int64 = id(1)
 

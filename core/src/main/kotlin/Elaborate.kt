@@ -79,15 +79,12 @@ sealed interface Term {
         val args: List<Term>,
     ) : Term
 
-    data class Pair(
-        val binder: Pattern,
-        val first: Term,
-        val second: Term,
+    data class Record(
+        val fields: Map<String, Term>,
     ) : Term
 
-    data class PairOf(
-        val first: Term,
-        val second: Term,
+    data class RecordOf(
+        val fields: Map<String, Term>,
     ) : Term
 
     data class Refine(
@@ -157,15 +154,13 @@ sealed interface Value {
         val args: List<Value>,
     ) : Value
 
-    data class Pair(
-        val binder: Pattern,
-        val first: Value,
-        val second: (first: Value) -> Value,
+    // TODO: dependent record
+    data class Record(
+        val fields: Map<String, Value>,
     ) : Value
 
-    data class PairOf(
-        val first: Value,
-        val second: Value,
+    data class RecordOf(
+        val fields: Map<String, Value>,
     ) : Value
 
     data class Refine(
@@ -265,15 +260,15 @@ private fun PersistentList<Value>.eval(term: Term): Value {
             }
         }
 
-        is Term.Pair -> Value.Pair(
-            term.binder,
-            eval(term.first),
-        ) { first -> add(first).eval(term.second) }
+        is Term.Record -> {
+            val fields = term.fields.mapValues { (_, value) -> eval(value) }
+            Value.Record(fields)
+        }
 
-        is Term.PairOf -> Value.PairOf(
-            eval(term.first),
-            eval(term.second),
-        )
+        is Term.RecordOf -> {
+            val fields = term.fields.mapValues { (_, value) -> eval(value) }
+            Value.RecordOf(fields)
+        }
 
         is Term.Refine -> {
             val base = eval(term.base)
@@ -331,15 +326,12 @@ private fun Level.quote(value: Value): Term {
             value.args.map { arg -> quote(arg) },
         )
 
-        is Value.Pair -> Term.Pair(
-            value.binder,
-            quote(value.first),
-            (this + 1u).quote(value.second(Value.Var(value.binder, this)))
+        is Value.Record -> Term.Record(
+            value.fields.mapValues { (_, v) -> quote(v) },
         )
 
-        is Value.PairOf -> Term.PairOf(
-            quote(value.first),
-            quote(value.second),
+        is Value.RecordOf -> Term.RecordOf(
+            value.fields.mapValues { (_, v) -> quote(v) },
         )
 
         is Value.Refine -> Term.Refine(
@@ -444,13 +436,30 @@ private fun Level.conv(v1: Value, v2: Value): ConvResult {
         }
 
         v1 is Value.Call && v2 is Value.Call -> conv(v1.func, v2.func) then { convZip(v1.args, v2.args) }
-        v1 is Value.Pair && v2 is Value.Pair -> conv(v1.first, v2.first) then {
-            Value.Var("$$this", this).let { x ->
-                conv(v1.second(x), v2.second(x))
+        v1 is Value.Record && v2 is Value.Record -> {
+            if (v1.fields.keys != v2.fields.keys) return ConvResult.NO
+            var result = ConvResult.YES
+            for (key in v1.fields.keys) {
+                result = result then {
+                    conv(v1.fields[key]!!, v2.fields[key]!!)
+                }
+                if (result != ConvResult.YES) break
             }
+            result
         }
 
-        v1 is Value.PairOf && v2 is Value.PairOf -> conv(v1.first, v2.first) then { conv(v1.second, v2.second) }
+        v1 is Value.RecordOf && v2 is Value.RecordOf -> {
+            if (v1.fields.keys != v2.fields.keys) return ConvResult.NO
+            var result = ConvResult.YES
+            for (key in v1.fields.keys) {
+                result = result then {
+                    conv(v1.fields[key]!!, v2.fields[key]!!)
+                }
+                if (result != ConvResult.YES) break
+            }
+            result
+        }
+
         v1 is Value.Refine && v2 is Value.Refine -> conv(v1.base, v2.base) then {
             Value.Var("$$this", this).let { x ->
                 when (conv(v1.property(x), v2.property(x))) {
@@ -772,20 +781,18 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
             }
         }
 
-        // e , e  ⇒  v , v
-        is Concrete.Pair -> {
-            val first = synthTerm(term.first)
-            val second = synthTerm(term.second)
-            val secondType = size.quote(second.type)
+        // { x = e , … , x = e }  ⇒  { x = v , … , x = v }
+        is Concrete.Record -> {
+            val fields = mutableMapOf<String, Term>()
+            val fieldsV = mutableMapOf<String, Value>()
+            for ((name, value) in term.fields) {
+                val value1 = synthTerm(value)
+                fields[name.text] = value1.target
+                fieldsV[name.text] = value1.type
+            }
             Anno(
-                Term.PairOf(
-                    first.target,
-                    second.target,
-                ),
-                Value.Pair(
-                    "$$size",
-                    first.type,
-                ) { first -> values.add(first).eval(secondType) },
+                Term.Record(fields),
+                Value.Record(fieldsV),
             )
         }
 
@@ -931,36 +938,32 @@ private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term
         //     }
         // }
 
-        // e , e  ⇐  type
-        is Concrete.Pair if expected is Value.Type -> {
-            val first: Anno<Pattern>
-            val second: Anno<Term>
-            extending {
-                first = synthPattern(term.first)
-                second = checkTerm(term.second, Value.Type)
-                ensureSolved(first.type, term.first.span)
+        // { x = e , … , x = e }  ⇐  type
+        is Concrete.Record if expected is Value.Type -> {
+            val fields = mutableMapOf<String, Term>()
+            for ((name, value) in term.fields) {
+                val value1 = checkTerm(value, Value.Type)
+                fields[name.text] = value1.target
             }
-            val firstType = size.quote(first.type)
             Anno(
-                Term.Pair(
-                    first.target,
-                    firstType,
-                    second.target,
-                ),
+                Term.Record(fields),
                 expected,
             )
         }
 
-        // e , e  ⇐  v , v
-        is Concrete.Pair if expected is Value.Pair -> {
-            val first = checkTerm(term.first, expected.first)
-            val firstV = values.eval(first.target)
-            val second = checkTerm(term.second, expected.second(firstV))
+        // { x = e , … , x = e }  ⇐  { x = v , … , x = v }
+        is Concrete.Record if expected is Value.Record && term.fields.size >= expected.fields.keys.size -> {
+            val fields = mutableMapOf<String, Term>()
+            for ((name, value) in term.fields) {
+                val fieldType = expected.fields[name.text] ?: run {
+                    val _ = diagnoseTerm("Unexpected field `${name.text}`", name.span, Severity.ERROR)
+                    Value.Err
+                }
+                val value1 = checkTerm(value, fieldType)
+                fields[name.text] = value1.target
+            }
             Anno(
-                Term.PairOf(
-                    first.target,
-                    second.target,
-                ),
+                Term.RecordOf(fields),
                 expected,
             )
         }

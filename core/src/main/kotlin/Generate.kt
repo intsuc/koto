@@ -82,13 +82,16 @@ private fun GenerateState.generateTerm(term: Term) {
             append(")")
         }
 
-        is Term.Pair -> append("\"${stringify(term, 0u)}\"")
-        is Term.PairOf -> {
-            append("[")
-            generateTerm(term.first)
-            append(", ")
-            generateTerm(term.second)
-            append("]")
+        is Term.Record -> append("\"${stringify(term, 0u)}\"")
+        is Term.RecordOf -> {
+            append("{")
+            for ((key, value) in term.fields) {
+                append(escapeName(key))
+                append(": ")
+                generateTerm(value)
+                append(", ")
+            }
+            append("}")
         }
 
         is Term.Refine -> append("\"${stringify(term, 0u)}\"")
