@@ -802,6 +802,7 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
             val property: Anno<Term>
             extending {
                 base = synthPattern(term.base)
+                extend(base.target, term.base.span, term.scope, base.type)
                 property = checkTerm(term.property, Value.Bool)
                 ensureSolved(base.type, term.base.span)
             }
