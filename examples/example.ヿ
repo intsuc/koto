@@ -17,13 +17,6 @@ let func3 : fun(- : fun(- : int64) → int64) → int64 = fun(f) = f(0)
 let d-func = fun(a : type) → a
 let d-func3 = fun(a : type) → fun(b : type) → b
 
-let refine-type : type = (- : int64) @ true
-let refine-type : type = (x : bool) @ x
-let refine-trivial : (- : int64) @ true = 1
-let refine-compute-success : (x : int64) @ (fun(y : int64) = true)(x) = 2
-let refine-compute-failure : (x : int64) @ (fun(y : int64) = false)(x) = 3
-let refine-singleton : (x : bool) @ x = true
-
 let ite = if true then 1 else 2
 let ite : if true then int64 else bool = 1
 let ite : if false then int64 else bool = true
@@ -48,7 +41,5 @@ let - : int64 = d-id(int64)(3)
 let - : bool = d-id(bool)(true)
 
 fun loop(x : int64) → int64 = loop(x)
-fun loop-t(a : type) → type = loop-t(a)
-let diverge-at-runtime-type-checking : loop-t(type) = type
 
 type

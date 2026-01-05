@@ -104,6 +104,11 @@ sealed interface Term {
         val index: Index,
     ) : Term
 
+    data class Check(
+        val target: Term,
+        val type: Term,
+    ) : Term
+
     data object Meta : Term
 
     data object Err : Term
@@ -175,6 +180,11 @@ sealed interface Value {
     data class Var(
         val text: String,
         val level: Level,
+    ) : Value
+
+    data class Check(
+        val target: Value,
+        val type: Value,
     ) : Value
 
     data class Meta(
@@ -279,6 +289,11 @@ private fun PersistentList<Value>.eval(term: Term): Value {
             Value.Refine(term.binder, base) { base -> add(base).eval(term.predicate) }
         }
 
+        is Term.Check -> Value.Check(
+            eval(term.target),
+            eval(term.type),
+        )
+
         is Term.Meta -> Value.Meta(null)
         is Term.Err -> Value.Err
     }
@@ -351,6 +366,11 @@ private fun Level.quote(value: Value): Term {
         is Value.Var -> Term.Var(
             value.text,
             this - value.level - 1u,
+        )
+
+        is Value.Check -> Term.Check(
+            quote(value.target),
+            quote(value.type),
         )
 
         is Value.Meta -> Term.Meta
@@ -495,6 +515,10 @@ private fun Level.conv(v1: Value, v2: Value): ConvResult {
         }
 
         v1 is Value.Var && v2 is Value.Var -> (v1.level == v2.level).toConvResult()
+        v1 is Value.Check && v2 is Value.Check -> conv(v1.target, v2.target) then {
+            conv(v1.type, v2.type)
+        }
+
         v1 is Value.Meta && v1 !== v2 -> {
             v1.solution = v2
             ConvResult.YES
@@ -1049,12 +1073,19 @@ private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term
                 ConvResult.UNKNOWN -> {
                     val expectedType = stringify(size.quote(expected), 0u)
                     val actualType = stringify(size.quote(synthesized.type), 0u)
-                    diagnoseTerm(
+                    val _ = diagnoseTerm(
                         "Expected `${expectedType}` but found `${actualType}`",
                         term.span,
                         Severity.WARNING,
                         expected,
                         synthesized.target
+                    )
+                    Anno(
+                        Term.Check(
+                            synthesized.target,
+                            size.quote(expected),
+                        ),
+                        expected,
                     )
                 }
             }

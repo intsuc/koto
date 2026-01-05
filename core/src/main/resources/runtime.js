@@ -34,3 +34,36 @@ const recordSymbol = Symbol("record")
 const record = (fields) => ({ [recordSymbol]: fields })
 const refineSymbol = Symbol("refine")
 const refine = (base, predicate) => ({ [refineSymbol]: { base, predicate } })
+
+const checkType = (targetValue, expectedType) => {
+  if (expectedType === type && targetValue === type) return
+  if (expectedType === type && targetValue === bool) return
+  if (expectedType === type && targetValue === int64) return
+  if (expectedType === type && targetValue === float64) return
+  if (expectedType === type && targetValue === str) return
+
+  const typeOfTarget = typeof targetValue
+  if (expectedType === bool && typeOfTarget === "boolean") return
+  if (expectedType === int64 && typeOfTarget === "bigint") return
+  if (expectedType === float64 && typeOfTarget === "number") return
+  if (expectedType === str && typeOfTarget === "string") return
+
+  if (funSymbol in expectedType) {
+    // TODO
+  }
+
+  if (recordSymbol in expectedType) {
+    // TODO
+  }
+
+  if (refineSymbol in expectedType) {
+    const { base, predicate } = expectedType[refineSymbol]
+    checkType(targetValue, base)
+    if (!predicate(targetValue)) {
+      throw new TypeError(`Refinement predicate failed for value: ${targetValue}`)
+    }
+    return
+  }
+
+  throw new TypeError(`Expected type ${expectedType}, but got value: ${targetValue}`)
+}

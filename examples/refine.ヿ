@@ -1,0 +1,8 @@
+let refine-type : type = (- : int64) @ true
+let refine-type : type = (x : bool) @ x
+let refine-trivial : (- : int64) @ true = 1
+let refine-compute-success : (x : int64) @ (fun(y : int64) = true)(x) = 2
+let refine-compute-failure : (x : int64) @ (fun(y : int64) = false)(x) = 3
+let refine-singleton : (x : bool) @ x = true
+
+type

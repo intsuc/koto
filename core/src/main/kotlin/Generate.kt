@@ -125,6 +125,14 @@ private fun GenerateState.generateTerm(term: Term) {
         }
 
         is Term.Var -> append(escapeName(term.text))
+        is Term.Check -> {
+            append("checkType(")
+            generateTerm(term.target)
+            append(", ")
+            generateTerm(term.type)
+            append(")")
+        }
+
         is Term.Meta -> error("Unexpected term: $term")
         is Term.Err -> error("Unexpected term: $term")
     }
