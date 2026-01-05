@@ -138,7 +138,105 @@ private sealed interface Expression {
         }
     }
 
-    // TODO
+    data class PropertyAccess(
+        val target: Expression,
+        val name: String,
+    ) : Expression
+
+    data class New(
+        val callee: Expression,
+        val arguments: List<Expression>,
+    ) : Expression
+
+    data class Call(
+        val callee: Expression,
+        val arguments: List<Expression>,
+    ) : Expression
+
+    class Unary(
+        val kind: Kind,
+        val expression: Expression,
+    ) : Expression {
+        enum class Kind {
+            DELETE,
+            VOID,
+            TYPEOF,
+            PLUS,
+            MINUS,
+            BITWISE_NOT,
+            LOGICAL_NOT,
+            AWAIT,
+            YIELD,
+            YIELD_GENERATOR,
+        }
+    }
+
+    data class Binary(
+        val kind: Kind,
+        val left: Expression,
+        val right: Expression,
+    ) : Expression {
+        enum class Kind {
+            EXPONENTIATION,
+            MULTIPLICATION,
+            DIVISION,
+            REMAINDER,
+            ADDITION,
+            SUBTRACTION,
+            LEFT_SHIFT,
+            SIGNED_RIGHT_SHIFT,
+            UNSIGNED_RIGHT_SHIFT,
+            LESS_THAN,
+            GREATER_THAN,
+            LESS_THAN_OR_EQUAL,
+            GREATER_THAN_OR_EQUAL,
+            INSTANCEOF,
+            IN,
+            LOOSELY_EQUAL,
+            LOOSELY_NOT_EQUAL,
+            STRICTLY_EQUAL,
+            STRICTLY_NOT_EQUAL,
+            BITWISE_AND,
+            BITWISE_XOR,
+            BITWISE_OR,
+            LOGICAL_AND,
+            LOGICAL_OR,
+            COALESCE,
+            ASSIGNMENT,
+            MULTIPLICATION_ASSIGNMENT,
+            DIVISION_ASSIGNMENT,
+            REMAINDER_ASSIGNMENT,
+            ADDITION_ASSIGNMENT,
+            SUBTRACTION_ASSIGNMENT,
+            LEFT_SHIFT_ASSIGNMENT,
+            SIGNED_RIGHT_SHIFT_ASSIGNMENT,
+            UNSIGNED_RIGHT_SHIFT_ASSIGNMENT,
+            BITWISE_AND_ASSIGNMENT,
+            BITWISE_XOR_ASSIGNMENT,
+            BITWISE_OR_ASSIGNMENT,
+            EXPONENTIATION_ASSIGNMENT,
+            LOGICAL_AND_ASSIGNMENT,
+            LOGICAL_OR_ASSIGNMENT,
+            COALESCE_ASSIGNMENT,
+            COMMA,
+        }
+    }
+
+    data class Conditional(
+        val condition: Expression,
+        val thenExpression: Expression,
+        val elseExpression: Expression,
+    ) : Expression
+
+    data class ArrowFunction(
+        val parameters: List<Binding>,
+        val body: Body,
+    ) : Expression {
+        sealed interface Body {
+            data class Expression(val expression: koto.core.util.Expression) : Body
+            data class Function(val statements: List<Statement>) : Body
+        }
+    }
 }
 
 private data class Binding(
