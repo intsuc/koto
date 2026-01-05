@@ -75,6 +75,69 @@ private sealed interface Statement {
 }
 
 private sealed interface Expression {
+    data object This : Expression
+
+    data class Identifier(
+        val identifier: String,
+    ) : Expression
+
+    data object NullLiteral : Expression
+
+    data class BooleanLiteral(
+        val value: kotlin.Boolean,
+    ) : Expression
+
+    data class DecimalLiteral(
+        val value: Double,
+    ) : Expression
+
+    data class BigIntegerLiteral(
+        val value: java.math.BigInteger,
+    ) : Expression
+
+    data class StringLiteral(
+        val value: String,
+    ) : Expression
+
+    data class Spread(
+        val expression: Expression,
+    ) : Expression
+
+    data class ArrayLiteral(
+        val expressions: List<Expression>,
+    ) : Expression
+
+    data class ObjectLiteral(
+        val expressions: Map<String, Expression>,
+    ) : Expression
+
+    data class Function(
+        val kind: Kind,
+        val identifier: String,
+        val parameters: List<Binding>,
+        val body: List<Statement>,
+    ) : Expression {
+        enum class Kind {
+            FUNCTION,
+            GENERATOR,
+            ASYNC,
+            ASYNC_GENERATOR,
+        }
+    }
+
+    data class RegularExpressionLiteral(
+        val value: kotlin.String,
+    ) : Expression
+
+    data class TemplateLiteral(
+        val spans: List<Span>,
+    ) : Expression {
+        sealed interface Span {
+            data class NoSubstitution(val value: String) : Span
+            data class Substitution(val expression: Expression) : Span
+        }
+    }
+
     // TODO
 }
 
