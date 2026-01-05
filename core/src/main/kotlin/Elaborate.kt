@@ -475,7 +475,6 @@ private fun Level.conv(v1: Value, v2: Value): ConvResult {
         }
 
         v1 is Value.Call && v2 is Value.Call -> conv(v1.func, v2.func) then { convZip(v1.args, v2.args) }
-        v1 is Value.Call || v2 is Value.Call -> ConvResult.UNKNOWN
         v1 is Value.Record && v2 is Value.Record -> {
             if (v1.fields.keys != v2.fields.keys) return ConvResult.NO
             var result = ConvResult.YES

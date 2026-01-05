@@ -1,4 +1,0 @@
-fun loop(a : type) → type = loop(a)
-let diverge-at-runtime-type-checking : loop(type) = type
-
-type

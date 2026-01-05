@@ -1,0 +1,4 @@
+fun loop(a : type) → type = loop(a)
+let error-but-not-loop-at-compile-time : loop(type) = type
+
+type

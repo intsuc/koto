@@ -9,28 +9,44 @@ import kotlin.io.path.Path
 import kotlin.io.path.absolute
 import kotlin.io.path.forEachDirectoryEntry
 import kotlin.io.path.readText
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ElaborateTest {
-    private fun test(path: Path) {
-        val text = path.readText()
-        val parseResult = parse(text)
-        assertTrue(parseResult.diagnostics.none { it.severity == Severity.ERROR })
-        parseResult.diagnostics.forEach { println(it) }
-        val elaborateResult = elaborate(parseResult)
-        assertTrue(elaborateResult.diagnostics.none { it.severity == Severity.ERROR })
-        elaborateResult.diagnostics.forEach { println(it) }
-    }
-
     @TestFactory
-    fun dynamicTestsFromCollection(): List<DynamicTest> {
+    fun successTests(): List<DynamicTest> {
         val files = mutableListOf<Path>()
-        Path("").absolute().resolveSibling("examples").forEachDirectoryEntry("*.ヿ") {
+        Path("").absolute().resolveSibling("examples").resolve("success").forEachDirectoryEntry("*.ヿ") {
             files.add(it)
         }
         return files.map { path ->
-            dynamicTest("Elaborate ${path.fileName}") {
-                test(path)
+            dynamicTest("success elaborate ${path.fileName}") {
+                val text = path.readText()
+                val parseResult = parse(text)
+                assertTrue(parseResult.diagnostics.none { it.severity == Severity.ERROR })
+                parseResult.diagnostics.forEach { println(it) }
+                val elaborateResult = elaborate(parseResult)
+                assertTrue(elaborateResult.diagnostics.none { it.severity == Severity.ERROR })
+                elaborateResult.diagnostics.forEach { println(it) }
+            }
+        }
+    }
+
+    @TestFactory
+    fun failureTests(): List<DynamicTest> {
+        val files = mutableListOf<Path>()
+        Path("").absolute().resolveSibling("examples").resolve("failure").forEachDirectoryEntry("*.ヿ") {
+            files.add(it)
+        }
+        return files.map { path ->
+            dynamicTest("failure elaborate ${path.fileName}") {
+                val text = path.readText()
+                val parseResult = parse(text)
+                assertTrue(parseResult.diagnostics.none { it.severity == Severity.ERROR })
+                parseResult.diagnostics.forEach { println(it) }
+                val elaborateResult = elaborate(parseResult)
+                assertFalse(elaborateResult.diagnostics.none { it.severity == Severity.ERROR })
+                elaborateResult.diagnostics.forEach { println(it) }
             }
         }
     }
