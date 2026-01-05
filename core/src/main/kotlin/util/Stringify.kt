@@ -91,7 +91,7 @@ fun stringify(term: Term, minBp: UInt): String {
         is Term.Refine -> {
             val binder = stringifyPattern(term.binder, 0u)
             val base = stringify(term.base, 200u)
-            val property = stringify(term.property, 200u)
+            val property = stringify(term.predicate, 200u)
             p(minBp, 200u, "$binder : $base @ $property")
         }
 

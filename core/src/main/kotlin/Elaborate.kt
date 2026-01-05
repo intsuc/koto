@@ -96,7 +96,7 @@ sealed interface Term {
     data class Refine(
         val binder: Pattern,
         val base: Term,
-        val property: Term,
+        val predicate: Term,
     ) : Term
 
     data class Var(
@@ -169,7 +169,7 @@ sealed interface Value {
     data class Refine(
         val binder: Pattern,
         val base: Value,
-        val property: (base: Value) -> Value,
+        val predicate: (base: Value) -> Value,
     ) : Value
 
     data class Var(
@@ -276,7 +276,7 @@ private fun PersistentList<Value>.eval(term: Term): Value {
 
         is Term.Refine -> {
             val base = eval(term.base)
-            Value.Refine(term.binder, base) { base -> add(base).eval(term.property) }
+            Value.Refine(term.binder, base) { base -> add(base).eval(term.predicate) }
         }
 
         is Term.Meta -> Value.Meta(null)
@@ -319,9 +319,10 @@ private fun Level.quote(value: Value): Term {
         }
 
         is Value.FunOf -> {
-            val result = (this + value.binders.size.toUInt()).quote(value.result((0u until value.binders.size.toUInt()).map { i ->
-                Value.Var(value.binders[i.toInt()], this + i)
-            }))
+            val result =
+                (this + value.binders.size.toUInt()).quote(value.result((0u until value.binders.size.toUInt()).map { i ->
+                    Value.Var(value.binders[i.toInt()], this + i)
+                }))
             Term.FunOf(
                 value.binders,
                 result,
@@ -344,7 +345,7 @@ private fun Level.quote(value: Value): Term {
         is Value.Refine -> Term.Refine(
             value.binder,
             quote(value.base),
-            (this + 1u).quote(value.property(Value.Var(value.binder, this))),
+            (this + 1u).quote(value.predicate(Value.Var(value.binder, this))),
         )
 
         is Value.Var -> Term.Var(
@@ -481,7 +482,7 @@ private fun Level.conv(v1: Value, v2: Value): ConvResult {
 
         v1 is Value.Refine && v2 is Value.Refine -> conv(v1.base, v2.base) then {
             Value.Var("$$this", this).let { x ->
-                when (conv(v1.property(x), v2.property(x))) {
+                when (conv(v1.predicate(x), v2.predicate(x))) {
                     ConvResult.YES -> ConvResult.YES
                     else -> ConvResult.UNKNOWN
                 }
@@ -593,13 +594,24 @@ private fun ElaborateState.checkPattern(pattern: Concrete, expected: Value): Ann
                 ConvResult.NO -> {
                     val expectedType = stringify(size.quote(expected), 0u)
                     val actualType = stringify(size.quote(synthesized.type), 0u)
-                    diagnosePattern("Expected `${expectedType}` but found `${actualType}`", pattern.span, Severity.ERROR, expected)
+                    diagnosePattern(
+                        "Expected `${expectedType}` but found `${actualType}`",
+                        pattern.span,
+                        Severity.ERROR,
+                        expected
+                    )
                 }
 
                 ConvResult.UNKNOWN -> {
                     val expectedType = stringify(size.quote(expected), 0u)
                     val actualType = stringify(size.quote(synthesized.type), 0u)
-                    diagnosePattern("Expected `${expectedType}` but found `${actualType}`", pattern.span, Severity.WARNING, expected, synthesized.target)
+                    diagnosePattern(
+                        "Expected `${expectedType}` but found `${actualType}`",
+                        pattern.span,
+                        Severity.WARNING,
+                        expected,
+                        synthesized.target
+                    )
                 }
             }
         }
@@ -829,11 +841,11 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
         // e @ e  ⇒  type
         is Concrete.Refine -> {
             val base: Anno<Pattern>
-            val property: Anno<Term>
+            val predicate: Anno<Term>
             extending {
                 base = synthPattern(term.base)
                 extend(base.target, term.base.span, term.scope, base.type)
-                property = checkTerm(term.property, Value.Bool)
+                predicate = checkTerm(term.predicate, Value.Bool)
                 ensureSolved(base.type, term.base.span)
             }
             val baseType = size.quote(base.type)
@@ -841,7 +853,7 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
                 Term.Refine(
                     base.target,
                     baseType,
-                    property.target,
+                    predicate.target,
                 ),
                 Value.Type,
             )
@@ -1026,13 +1038,24 @@ private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term
                 ConvResult.NO -> {
                     val expectedType = stringify(size.quote(expected), 0u)
                     val actualType = stringify(size.quote(synthesized.type), 0u)
-                    diagnoseTerm("Expected `${expectedType}` but found `${actualType}`", term.span, Severity.ERROR, expected)
+                    diagnoseTerm(
+                        "Expected `${expectedType}` but found `${actualType}`",
+                        term.span,
+                        Severity.ERROR,
+                        expected
+                    )
                 }
 
                 ConvResult.UNKNOWN -> {
                     val expectedType = stringify(size.quote(expected), 0u)
                     val actualType = stringify(size.quote(synthesized.type), 0u)
-                    diagnoseTerm("Expected `${expectedType}` but found `${actualType}`", term.span, Severity.WARNING, expected, synthesized.target)
+                    diagnoseTerm(
+                        "Expected `${expectedType}` but found `${actualType}`",
+                        term.span,
+                        Severity.WARNING,
+                        expected,
+                        synthesized.target
+                    )
                 }
             }
         }

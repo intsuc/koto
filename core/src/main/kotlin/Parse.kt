@@ -72,7 +72,7 @@ sealed interface Concrete {
     // e @ e
     data class Refine(
         val base: Concrete,
-        val property: Concrete,
+        val predicate: Concrete,
         val scope: Span,
         override val span: Span,
     ) : Concrete
@@ -242,7 +242,13 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
                 '\\' -> {
                     skip() // \
                     if (!peekable()) {
-                        diagnostics.add(Diagnostic("Unfinished escape sequence", Span(cursor - 1u, cursor), Severity.ERROR))
+                        diagnostics.add(
+                            Diagnostic(
+                                "Unfinished escape sequence",
+                                Span(cursor - 1u, cursor),
+                                Severity.ERROR
+                            )
+                        )
                         break
                     }
                     when (val escaped = peek()) {
@@ -272,7 +278,13 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
                         }
 
                         else -> {
-                            diagnostics.add(Diagnostic("Unknown escape sequence: \\$escaped", Span(cursor - 1u, cursor + 1u), Severity.ERROR))
+                            diagnostics.add(
+                                Diagnostic(
+                                    "Unknown escape sequence: \\$escaped",
+                                    Span(cursor - 1u, cursor + 1u),
+                                    Severity.ERROR
+                                )
+                            )
                             builder.append(escaped)
                             skip()
                         }
@@ -462,12 +474,12 @@ private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete 
     if (minBp <= 200u && peekable() && peek() == '@') {
         skip() // @
         skipWhitespace()
-        val property = parseAtLeast(201u)
+        val predicate = parseAtLeast(201u)
         val next = Concrete.Refine(
             base = head,
-            property = property,
+            predicate = predicate,
             scope = Span.ZERO,
-            span = Span(head.span.start, property.span.endExclusive),
+            span = Span(head.span.start, predicate.span.endExclusive),
         )
         return parseTail(minBp, next)
     }

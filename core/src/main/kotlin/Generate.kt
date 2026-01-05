@@ -24,8 +24,8 @@ private fun GenerateState.generatePattern(pattern: Pattern) {
 
 private fun GenerateState.generateTerm(term: Term) {
     when (term) {
-        is Term.Type -> append("\"${stringify(term, 0u)}\"")
-        is Term.Bool -> append("\"${stringify(term, 0u)}\"")
+        is Term.Type -> append("type")
+        is Term.Bool -> append("bool")
         is Term.BoolOf -> append(if (term.value) "true" else "false")
         is Term.If -> {
             append("(")
@@ -37,11 +37,11 @@ private fun GenerateState.generateTerm(term: Term) {
             append(")")
         }
 
-        is Term.Int64 -> append("\"${stringify(term, 0u)}\"")
+        is Term.Int64 -> append("int64")
         is Term.Int64Of -> append("${term.value}n")
-        is Term.Float64 -> append("\"${stringify(term, 0u)}\"")
+        is Term.Float64 -> append("float64")
         is Term.Float64Of -> append("${term.value}")
-        is Term.Str -> append("\"${stringify(term, 0u)}\"")
+        is Term.Str -> append("str")
         is Term.StrOf -> append(stringify(term, 0u))
         is Term.Let -> {
             // TODO: use native statements
@@ -66,7 +66,17 @@ private fun GenerateState.generateTerm(term: Term) {
             append(";\n})()")
         }
 
-        is Term.Fun -> append("\"${stringify(term, 0u)}\"")
+        is Term.Fun -> {
+            append("fun([")
+            for (param in term.params) {
+                generateTerm(param)
+                append(", ")
+            }
+            append("], ")
+            generateTerm(term.result)
+            append(")")
+        }
+
         is Term.FunOf -> {
             append("((")
             for (binder in term.binders) generatePattern(binder)
@@ -82,7 +92,17 @@ private fun GenerateState.generateTerm(term: Term) {
             append(")")
         }
 
-        is Term.Record -> append("\"${stringify(term, 0u)}\"")
+        is Term.Record -> {
+            append("record({")
+            for ((key, value) in term.fields) {
+                append(escapeName(key))
+                append(": ")
+                generateTerm(value)
+                append(", ")
+            }
+            append("})")
+        }
+
         is Term.RecordOf -> {
             append("{")
             for ((key, value) in term.fields) {
@@ -94,7 +114,16 @@ private fun GenerateState.generateTerm(term: Term) {
             append("}")
         }
 
-        is Term.Refine -> append("\"${stringify(term, 0u)}\"")
+        is Term.Refine -> {
+            append("refine(")
+            generateTerm(term.base)
+            append(", (")
+            generatePattern(term.binder)
+            append(") => ")
+            generateTerm(term.predicate)
+            append(")")
+        }
+
         is Term.Var -> append(escapeName(term.text))
         is Term.Meta -> error("Unexpected term: $term")
         is Term.Err -> error("Unexpected term: $term")

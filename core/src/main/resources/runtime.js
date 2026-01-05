@@ -22,3 +22,15 @@ try {
 } catch {
   observer.observe(canvas, { box: "content-box" })
 }
+
+const type = Symbol("type")
+const bool = Symbol("bool")
+const int64 = Symbol("int64")
+const float64 = Symbol("float64")
+const str = Symbol("str")
+const funSymbol = Symbol("fun")
+const fun = (params, result) => ({ [funSymbol]: { params, result } })
+const recordSymbol = Symbol("record")
+const record = (fields) => ({ [recordSymbol]: fields })
+const refineSymbol = Symbol("refine")
+const refine = (base, predicate) => ({ [refineSymbol]: { base, predicate } })
