@@ -67,9 +67,9 @@ fun stringify(term: Term, minBp: UInt): String {
         }
 
         is Term.Call -> {
-            val func = stringify(term.func, 30u)
+            val func = stringify(term.func, 500u)
             val args = term.args.joinToString(", ") { arg -> stringify(arg, 0u) }
-            "$func($args)"
+            p(minBp, 500u, "$func($args)")
         }
 
         is Term.Record -> {
@@ -77,7 +77,7 @@ fun stringify(term: Term, minBp: UInt): String {
                 val value = stringify(value, 0u)
                 "$key = $value"
             }
-            "{ $fields }"
+            if (fields.isEmpty()) "{}" else "{ $fields }"
         }
 
         is Term.RecordOf -> {
@@ -85,7 +85,7 @@ fun stringify(term: Term, minBp: UInt): String {
                 val value = stringify(value, 0u)
                 "$key = $value"
             }
-            "{ $fields }"
+            if (fields.isEmpty()) "{}" else "{ $fields }"
         }
 
         is Term.Access -> {
