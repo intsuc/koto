@@ -114,6 +114,12 @@ private fun GenerateState.generateTerm(term: Term) {
             append("}")
         }
 
+        is Term.Access -> {
+            generateTerm(term.record)
+            append(".")
+            append(escapeName(term.field))
+        }
+
         is Term.Refine -> {
             append("refine(")
             generateTerm(term.base)

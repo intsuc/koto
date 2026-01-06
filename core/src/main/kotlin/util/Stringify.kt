@@ -88,6 +88,12 @@ fun stringify(term: Term, minBp: UInt): String {
             "{ $fields }"
         }
 
+        is Term.Access -> {
+            val target = stringify(term.record, 300u)
+            val field = term.field
+            p(minBp, 300u, "$target.$field")
+        }
+
         is Term.Refine -> {
             val binder = stringifyPattern(term.binder, 0u)
             val base = stringify(term.base, 200u)

@@ -81,6 +81,13 @@ sealed interface Concrete {
         override val span: Span,
     ) : Concrete
 
+    // e . x
+    data class Access(
+        val record: Concrete,
+        val field: Ident,
+        override val span: Span,
+    ) : Concrete
+
     // e @ e
     data class Refine(
         val base: Concrete,
@@ -513,6 +520,20 @@ private tailrec fun ParseState.parseTail(minBp: UInt, head: Concrete): Concrete 
             predicate = predicate,
             scope = Span.ZERO,
             span = Span(head.span.start, predicate.span.endExclusive),
+        )
+        return parseTail(minBp, next)
+    }
+
+    // h . x
+    if (minBp <= 300u && peekable() && peek() == '.') {
+        skip() // .
+        skipWhitespace()
+        val (fieldText, fieldSpan) = parseWord()
+        val field = Concrete.Ident(fieldText, fieldSpan)
+        val next = Concrete.Access(
+            record = head,
+            field = field,
+            span = Span(head.span.start, field.span.endExclusive),
         )
         return parseTail(minBp, next)
     }

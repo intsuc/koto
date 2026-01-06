@@ -93,6 +93,11 @@ sealed interface Term {
         val fields: Map<String, Term>,
     ) : Term
 
+    data class Access(
+        val record: Term,
+        val field: String,
+    ) : Term
+
     data class Refine(
         val binder: Pattern,
         val base: Term,
@@ -169,6 +174,11 @@ sealed interface Value {
 
     data class RecordOf(
         val fields: Map<String, Value>,
+    ) : Value
+
+    data class Access(
+        val record: Value,
+        val field: String,
     ) : Value
 
     data class Refine(
@@ -284,6 +294,13 @@ private fun PersistentList<Value>.eval(term: Term): Value {
             Value.RecordOf(fields)
         }
 
+        is Term.Access -> {
+            when (val record = eval(term.record)) {
+                is Value.RecordOf -> record.fields[term.field] ?: Value.Err
+                else -> Value.Access(record, term.field)
+            }
+        }
+
         is Term.Refine -> {
             val base = eval(term.base)
             Value.Refine(term.binder, base) { base -> add(base).eval(term.predicate) }
@@ -355,6 +372,11 @@ private fun Level.quote(value: Value): Term {
 
         is Value.RecordOf -> Term.RecordOf(
             value.fields.mapValues { (_, v) -> quote(v) },
+        )
+
+        is Value.Access -> Term.Access(
+            quote(value.record),
+            value.field,
         )
 
         is Value.Refine -> Term.Refine(
@@ -497,6 +519,10 @@ private fun Level.conv(v1: Value, v2: Value): ConvResult {
                 if (result != ConvResult.YES) break
             }
             result
+        }
+
+        v1 is Value.Access && v2 is Value.Access -> (v1.field == v2.field).toConvResult() then {
+            conv(v1.record, v2.record)
         }
 
         v1 is Value.Refine && v2 is Value.Refine -> conv(v1.base, v2.base) then {
@@ -860,6 +886,30 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
                 Term.Record(fields),
                 Value.Record(fieldsV),
             )
+        }
+
+        // e . x  ⇒  v
+        is Concrete.Access -> {
+            val record = synthTerm(term.record)
+            when (val recordType = force(record.type)) {
+                is Value.Record -> {
+                    when (val fieldType = recordType.fields[term.field.text]) {
+                        null -> diagnoseTerm("Unknown field `${term.field.text}`", term.field.span, Severity.ERROR)
+                        else -> Anno(
+                            Term.Access(
+                                record.target,
+                                term.field.text,
+                            ),
+                            fieldType,
+                        )
+                    }
+                }
+
+                else -> {
+                    val actualType = stringify(size.quote(recordType), 0u)
+                    diagnoseTerm("Expected record type, but found `$actualType`", term.record.span, Severity.ERROR)
+                }
+            }
         }
 
         // e @ e  ⇒  type

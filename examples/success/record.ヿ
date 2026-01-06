@@ -12,4 +12,7 @@ let x8 : { a = int64, b = bool } = { b = true, a = 1 }
 # no subtyping
 # let - : { a = int64 } = { a = 1, b = true }
 
+let x9 = { a = 1 }.a
+let x10 = { a = { b = 2 } }.a.b
+
 type
