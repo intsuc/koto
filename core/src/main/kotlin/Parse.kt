@@ -13,6 +13,18 @@ sealed interface Concrete {
         override val span: Span,
     ) : Concrete
 
+    // 0
+    data class Int64Of(
+        val value: Long,
+        override val span: Span,
+    ) : Concrete
+
+    // 0.0
+    data class Float64Of(
+        val value: Double,
+        override val span: Span,
+    ) : Concrete
+
     // ""
     data class StrOf(
         val value: String,
@@ -159,14 +171,14 @@ private fun ParseState.diagnoseTerm(message: String, span: Span): Concrete {
     return Concrete.Err(message, span)
 }
 
-private fun Char.isIdent(): Boolean = when (this) {
-    in 'a'..'z', in '0'..'9', '.', '-' -> true
-    else -> false
-}
-
 private fun ParseState.parseWord(): Pair<String, Span> {
     val start = cursor
-    skipWhile { it.isIdent() }
+    skipWhile {
+        when (it) {
+            in 'a'..'z', in '0'..'9', '-' -> true
+            else -> false
+        }
+    }
     val identText = text.substring(start.toInt(), cursor.toInt())
     return identText to Span(start, cursor)
 }
@@ -298,6 +310,27 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
             }
         }
         return Concrete.StrOf(builder.toString(), Span(start, cursor))
+    }
+
+    if (peekable() && when (peek()) {
+            in '0'..'9', '-' -> true
+            else -> false
+        }
+    ) {
+        val start = cursor
+        skip()
+        skipWhile {
+            when (it) {
+                in '0'..'9', '-', '.' -> true
+                else -> false
+            }
+        }
+        val substring = text.substring(start.toInt(), cursor.toInt())
+        return substring.toLongOrNull()?.let {
+            Concrete.Int64Of(it, Span(start, cursor))
+        } ?: substring.toDoubleOrNull()?.let {
+            Concrete.Float64Of(it, Span(start, cursor))
+        } ?: Concrete.Ident(substring, Span(start, cursor))
     }
 
     val (text, span) = parseWord()

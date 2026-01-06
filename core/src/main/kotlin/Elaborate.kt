@@ -664,12 +664,7 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
             "float64" -> Anno(Term.Float64, Value.Type)
             "str" -> Anno(Term.Str, Value.Type)
             else -> when (val level = entries.indexOfLast { it.name == term.text }) {
-                -1 -> term.text.toLongOrNull()?.let { value ->
-                    Anno(Term.Int64Of(value), Value.Int64)
-                } ?: term.text.toDoubleOrNull()?.let { value ->
-                    Anno(Term.Float64Of(value), Value.Float64)
-                } ?: diagnoseTerm("Unknown identifier `${term.text}`", term.span, Severity.ERROR)
-
+                -1 -> diagnoseTerm("Unknown identifier `${term.text}`", term.span, Severity.ERROR)
                 else -> {
                     val index = (entries.lastIndex - level)
                     require(index >= 0) { "de Bruijn index must be non-negative but got $index" }
@@ -678,6 +673,12 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
                 }
             }
         }
+
+        // 0  ⇒  int64
+        is Concrete.Int64Of -> Anno(Term.Int64Of(term.value), Value.Int64)
+
+        // 0.0  ⇒  float64
+        is Concrete.Float64Of -> Anno(Term.Float64Of(term.value), Value.Float64)
 
         // ""  ⇒  str
         is Concrete.StrOf -> Anno(Term.StrOf(term.value), Value.Str)

@@ -7,7 +7,7 @@ let t = true
 let f = false
 let float = float64
 let pi = 3.14159
-let -pi = -3.14159
+let neg-pi = -3.14159
 let pi : float64 = 3.14159
 
 let func : fun(- : int64) → int64 = fun(x : int64) = x
