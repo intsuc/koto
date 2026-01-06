@@ -15,4 +15,8 @@ let x8 : { a = int64, b = bool } = { b = true, a = 1 }
 let x9 = { a = 1 }.a
 let x10 = { a = { b = 2 } }.a.b
 
+let x11 : { a = int64 }.a = 1
+let x12 = { a = int64 }
+let x13 : x12.a = 1
+
 type

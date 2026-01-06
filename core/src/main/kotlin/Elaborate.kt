@@ -713,8 +713,9 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
         is Concrete.Let -> {
             val binder = synthPattern(term.binder)
             val init = checkTerm(term.init, binder.type)
+            val initV = values.eval(init.target)
             extending {
-                extend(binder.target, term.binder.span, term.scope, binder.type)
+                extend(binder.target, term.binder.span, term.scope, binder.type, initV)
                 val body = synthTerm(term.next)
                 ensureSolved(binder.type, term.binder.span)
                 Anno(
@@ -883,7 +884,7 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
                 fieldsV[name.text] = value1.type
             }
             Anno(
-                Term.Record(fields),
+                Term.RecordOf(fields),
                 Value.Record(fieldsV),
             )
         }
@@ -968,8 +969,9 @@ private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term
         is Concrete.Let -> {
             val binder = synthPattern(term.binder)
             val init = checkTerm(term.init, binder.type)
+            val initV = values.eval(init.target)
             extending {
-                extend(binder.target, term.binder.span, term.scope, binder.type)
+                extend(binder.target, term.binder.span, term.scope, binder.type, initV)
                 val body = checkTerm(term.next, expected)
                 ensureSolved(binder.type, term.binder.span)
                 Anno(
