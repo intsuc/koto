@@ -138,6 +138,7 @@ type
 ## ランダムな資料
 
 - [A Core Language for Extended Pattern Matching and Binding Boolean Expressions](https://www.chargueraud.org/research/2025/bbe/bbe-ml-workshop.pdf)
+- [Syntactic Implicit Parameters with Static Overloading](https://www.microsoft.com/en-us/research/publication/syntactic-implicit-parameters-with-static-overloading-extended-version)
 - [Using dependent types to express modular structure](https://doi.org/10.1145/512644.512670)
 - [Type Universes as Kripke Worlds](https://doi.org/10.1145/3747532)
 - [Linearity and Uniqueness: An Entente Cordiale](https://doi.org/10.1007/978-3-030-99336-8_13)
