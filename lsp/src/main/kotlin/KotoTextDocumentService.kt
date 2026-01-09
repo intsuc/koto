@@ -2,6 +2,7 @@ package koto.lsp
 
 import koto.core.elaborate
 import koto.core.parse
+import koto.core.util.Span
 import koto.core.util.stringify
 import org.eclipse.lsp4j.*
 import org.eclipse.lsp4j.jsonrpc.messages.Either
@@ -58,26 +59,23 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
         val offset = params.position.toOffset(parseResult.lineStarts)
         val expected = elaborateResult.expectedTypes.getLeaf(offset)
         val actual = elaborateResult.actualTypes.getLeaf(offset)
+        operator fun Span.contains(inner: Span): Boolean = start < inner.start || inner.endExclusive < endExclusive
         return completedFuture(
             when {
-                expected != null && actual == null ||
-                        expected != null && actual != null && actual.span != expected.span
-                    -> {
-                    val expectedString = "expected = ${stringify(expected.value.value)}\n"
-                    Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$expectedString```"))
+                expected != null && actual == null || expected != null && actual != null && expected.span in actual.span -> {
+                    val expected = "expected = ${stringify(expected.value.value)}\n"
+                    Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$expected```"))
                 }
 
-                expected == null && actual != null ||
-                        expected != null && actual != null && expected.span != actual.span
-                    -> {
-                    val actualString = "actual   = ${stringify(actual.value.value)}\n"
-                    Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$actualString```"))
+                expected == null && actual != null || expected != null && actual != null && actual.span in expected.span -> {
+                    val actual = "actual   = ${stringify(actual.value.value)}\n"
+                    Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$actual```"))
                 }
 
                 expected != null && actual != null && expected.span == actual.span -> {
-                    val expectedString = "expected = ${stringify(expected.value.value)}\n"
-                    val actualString = "actual   = ${stringify(actual.value.value)}\n"
-                    Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$expectedString$actualString```"))
+                    val expected = "expected = ${stringify(expected.value.value)}\n"
+                    val actual = "actual   = ${stringify(actual.value.value)}\n"
+                    Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$expected$actual```"))
                 }
 
                 else -> null
