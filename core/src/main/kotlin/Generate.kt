@@ -16,7 +16,7 @@ private class GenerateState {
 
     fun newline() {
         builder.append('\n')
-        repeat(depth) { builder.append("  ") }
+        repeat(depth) { builder.append('\t') }
     }
 
     private fun indent() {
@@ -249,16 +249,8 @@ fun generate(input: AnfTerm): GenerateResult {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-html,
-body {
-  margin: 0;
-  height: 100%;
-}
-canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
+html, body { margin: 0; height: 100%; }
+canvas { display: block; width: 100%; height: 100%; }
 </style>
 <script type="module">
 $runtime
