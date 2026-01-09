@@ -144,11 +144,17 @@ private fun GenerateState.generateAtom(atom: AnfAtom) {
             generateCollection(atom.binders) { binder ->
                 generatePattern(binder)
             }
-            append(") => {")
-            indented {
-                generateTerm(atom.body)
+            append(") => ")
+            if (atom.body is AnfTerm.Ret) {
+                generateAtom(atom.body.result)
+            } else {
+                append("{")
+                indented {
+                    generateTerm(atom.body)
+                }
+                append("}")
             }
-            append("})")
+            append(")")
         }
 
         is AnfAtom.Call -> {
@@ -191,11 +197,18 @@ private fun GenerateState.generateAtom(atom: AnfAtom) {
             generateAtom(atom.base)
             append(", (")
             generatePattern(atom.binder)
-            append(") => {")
-            indented {
-                generateTerm(atom.predicate)
+            append(") => ")
+            if (atom.predicate is AnfTerm.Ret) {
+                generateAtom(atom.predicate.result)
+            } else {
+                append("{")
+                indented {
+                    generateTerm(atom.predicate)
+                }
+                append("}")
             }
-            append("})")
+
+            append(")")
         }
 
         is AnfAtom.Check -> {
