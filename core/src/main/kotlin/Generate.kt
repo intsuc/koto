@@ -87,11 +87,16 @@ private fun GenerateState.generateTerm(term: AnfTerm) {
             generateCollection(term.binders) { binder ->
                 generatePattern(binder)
             }
-            append(") => {")
-            indented {
-                generateTerm(term.body)
+            append(") => ")
+            if (term.body is AnfTerm.Ret) {
+                generateAtom(term.body.result)
+            } else {
+                append("{")
+                indented {
+                    generateTerm(term.body)
+                }
+                append("}")
             }
-            append("}")
             newline()
             generateTerm(term.next)
         }
