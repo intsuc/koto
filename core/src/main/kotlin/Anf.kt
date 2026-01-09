@@ -4,6 +4,7 @@ import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import koto.core.util.stringify
 
+// TODO: use statement lists to avoid nesting
 sealed interface AnfTerm {
     data class If(
         val cond: AnfAtom,
