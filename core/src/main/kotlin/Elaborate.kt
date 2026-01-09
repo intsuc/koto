@@ -535,7 +535,11 @@ private fun Level.conv(v1: Value, v2: Value): ConvResult {
         }
 
         v2 is Value.Refine -> when (conv(v1, v2.base)) {
-            ConvResult.YES -> ConvResult.UNKNOWN
+            ConvResult.YES -> when (val predicate = v2.predicate(Value.Var("$$this", this))) {
+                is Value.BoolOf if predicate.value -> ConvResult.YES
+                else -> ConvResult.UNKNOWN
+            }
+
             else -> ConvResult.NO
         }
 

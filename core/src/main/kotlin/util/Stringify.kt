@@ -99,7 +99,7 @@ fun stringify(term: Term, minBp: UInt = 0u): String {
             val binder = stringifyPattern(term.binder)
             val base = stringify(term.base, 200u)
             val property = stringify(term.predicate, 200u)
-            p(minBp, 200u, "$binder : $base @ $property")
+            p(minBp, 200u, "($binder : $base) @ $property")
         }
 
         is Term.Var -> term.text
