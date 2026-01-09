@@ -20,6 +20,7 @@ let d-func3 = fun(a : type) → fun(b : type) → b
 let ite = if true then 1 else 2
 let ite : if true then int64 else bool = 1
 let ite : if false then int64 else bool = true
+let ite-nested = if let x = true x then let y = 1 y else let z = 2 z
 
 let not = fun(x : bool) = if x then false else true
 let and = fun(x : bool, y : bool) = if x then y else false

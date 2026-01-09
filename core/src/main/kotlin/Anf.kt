@@ -53,6 +53,12 @@ sealed interface AnfAtom {
         val value: Boolean,
     ) : AnfAtom
 
+    data class If(
+        val cond: AnfAtom,
+        val thenBranch: AnfAtom,
+        val elseBranch: AnfAtom,
+    ) : AnfAtom
+
     data object Int64 : AnfAtom
 
     data class Int64Of(
@@ -154,16 +160,20 @@ private fun AnfState.anfTerm(term: Term, k: (AnfAtom) -> AnfTerm): AnfTerm {
             val result = fresh("result")
             val thenBranch = anfTerm(term.thenBranch) { AnfTerm.Set(result, it) }
             val elseBranch = anfTerm(term.elseBranch) { AnfTerm.Set(result, it) }
-            val next = k(AnfAtom.Var(result))
-            AnfTerm.Def(
-                result,
-                AnfTerm.If(
-                    cond,
-                    thenBranch,
-                    elseBranch,
-                    next,
-                ),
-            )
+            if (thenBranch is AnfTerm.Set && elseBranch is AnfTerm.Set) {
+                k(AnfAtom.If(cond, thenBranch.source, elseBranch.source))
+            } else {
+                val next = k(AnfAtom.Var(result))
+                AnfTerm.Def(
+                    result,
+                    AnfTerm.If(
+                        cond,
+                        thenBranch,
+                        elseBranch,
+                        next,
+                    ),
+                )
+            }
         }
 
         is Term.Int64 -> k(AnfAtom.Int64)

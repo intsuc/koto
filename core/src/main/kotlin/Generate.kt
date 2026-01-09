@@ -128,6 +128,16 @@ private fun GenerateState.generateAtom(atom: AnfAtom) {
         is AnfAtom.Type -> append("type")
         is AnfAtom.Bool -> append("bool")
         is AnfAtom.BoolOf -> append(atom.value.toString())
+        is AnfAtom.If -> {
+            append("(")
+            generateAtom(atom.cond)
+            append(" ? ")
+            generateAtom(atom.thenBranch)
+            append(" : ")
+            generateAtom(atom.elseBranch)
+            append(")")
+        }
+
         is AnfAtom.Int64 -> append("int64")
         is AnfAtom.Int64Of -> append(atom.value.toString())
         is AnfAtom.Float64 -> append("float64")
