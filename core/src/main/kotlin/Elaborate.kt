@@ -596,7 +596,7 @@ private fun ElaborateState.extend(
 ) {
     val size = size
     val quotedType = lazy { size.quote(type) }
-    actualTypes.add(IntervalTree.Entry(nameSpan, quotedType))
+    expectedTypes.add(IntervalTree.Entry(nameSpan, quotedType))
     completionEntries.add(IntervalTree.Entry(scope, CompletionEntry(name, quotedType)))
     entries = entries.add(Entry(name, type))
     values = values.add(value)
