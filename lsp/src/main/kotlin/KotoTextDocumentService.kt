@@ -1,5 +1,6 @@
 package koto.lsp
 
+import koto.core.CompletionEntry
 import koto.core.elaborate
 import koto.core.parse
 import koto.core.util.Span
@@ -98,11 +99,16 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
         val parseResult = parse(text)
         val elaborateResult = elaborate(parseResult)
         val offset = params.position.toOffset(parseResult.lineStarts)
-        val scopes = elaborateResult.scopes.getAll(offset)
-        return completedFuture(Either.forRight(CompletionList(scopes.map { scope ->
-            CompletionItem(scope.name).apply {
+        val entries = elaborateResult.completionEntries.getAll(offset)
+        val deduplicatedEntries = mutableMapOf<String, CompletionEntry>()
+        for (entry in entries) {
+            deduplicatedEntries[entry.name] = entry
+        }
+        return completedFuture(Either.forRight(CompletionList(deduplicatedEntries.map { (_, entry) ->
+            CompletionItem(entry.name).apply {
+                kind = CompletionItemKind.Variable
                 labelDetails = CompletionItemLabelDetails().apply {
-                    detail = " : ${stringify(scope.type.value)}"
+                    detail = " : ${stringify(entry.type.value)}"
                 }
             }
         })))

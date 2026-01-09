@@ -213,7 +213,7 @@ data class ElaborateResult(
     val term: Term,
     val expectedTypes: IntervalTree<Lazy<Term>>,
     val actualTypes: IntervalTree<Lazy<Term>>,
-    val scopes: IntervalTree<CompletionEntry>,
+    val completionEntries: IntervalTree<CompletionEntry>,
     val diagnostics: List<Diagnostic>,
 )
 
@@ -227,7 +227,7 @@ private class ElaborateState {
     var values: PersistentList<Value> = persistentListOf()
     val expectedTypes: MutableList<IntervalTree.Entry<Lazy<Term>>> = mutableListOf()
     val actualTypes: MutableList<IntervalTree.Entry<Lazy<Term>>> = mutableListOf()
-    val scopes: MutableList<IntervalTree.Entry<CompletionEntry>> = mutableListOf()
+    val completionEntries: MutableList<IntervalTree.Entry<CompletionEntry>> = mutableListOf()
     val diagnostics: MutableList<Diagnostic> = mutableListOf()
     val size: Level get() = entries.size.toUInt()
 }
@@ -597,7 +597,7 @@ private fun ElaborateState.extend(
     val size = size
     val quotedType = lazy { size.quote(type) }
     actualTypes.add(IntervalTree.Entry(nameSpan, quotedType))
-    scopes.add(IntervalTree.Entry(scope, CompletionEntry(name, quotedType)))
+    completionEntries.add(IntervalTree.Entry(scope, CompletionEntry(name, quotedType)))
     entries = entries.add(Entry(name, type))
     values = values.add(value)
 }
@@ -1162,7 +1162,7 @@ fun elaborate(input: ParseResult): ElaborateResult {
         val term = synthTerm(input.term).target
         val expectedTypes = IntervalTree.of(expectedTypes)
         val actualTypes = IntervalTree.of(actualTypes)
-        val scopes = IntervalTree.of(scopes)
+        val scopes = IntervalTree.of(completionEntries)
         ElaborateResult(term, expectedTypes, actualTypes, scopes, diagnostics)
     }
 }
