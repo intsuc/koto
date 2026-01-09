@@ -61,25 +61,35 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
         val actual = elaborateResult.actualTypes.getLeaf(offset)
         operator fun Span.contains(inner: Span): Boolean = start < inner.start || inner.endExclusive < endExclusive
         return completedFuture(
-            when {
-                expected != null && actual == null || expected != null && actual != null && expected.span in actual.span -> {
-                    val expected = "expected = ${stringify(expected.value.value)}\n"
-                    Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$expected```"))
-                }
+            Hover(
+                MarkupContent(
+                    MarkupKind.MARKDOWN, "```koto\n${
+                        when {
+                            expected != null && actual == null || expected != null && actual != null && expected.span in actual.span -> {
+                                val expected = stringify(expected.value.value)
+                                "⇐ $expected"
+                            }
 
-                expected == null && actual != null || expected != null && actual != null && actual.span in expected.span -> {
-                    val actual = "actual   = ${stringify(actual.value.value)}\n"
-                    Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$actual```"))
-                }
+                            expected == null && actual != null || expected != null && actual != null && actual.span in expected.span -> {
+                                val actual = stringify(actual.value.value)
+                                "⇒ $actual"
+                            }
 
-                expected != null && actual != null && expected.span == actual.span -> {
-                    val expected = "expected = ${stringify(expected.value.value)}\n"
-                    val actual = "actual   = ${stringify(actual.value.value)}\n"
-                    Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$expected$actual```"))
-                }
+                            expected != null && actual != null && expected.span == actual.span -> {
+                                val expected = stringify(expected.value.value)
+                                val actual = stringify(actual.value.value)
+                                if (expected == actual) {
+                                    "⇔ $expected"
+                                } else {
+                                    "⇐ $expected\n⇒ $actual"
+                                }
+                            }
 
-                else -> null
-            }
+                            else -> return@hover completedFuture(null)
+                        }
+                    }\n```"
+                )
+            )
         )
     }
 
