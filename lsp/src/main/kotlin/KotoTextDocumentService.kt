@@ -61,20 +61,20 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
         return completedFuture(
             when {
                 expected != null && actual == null ||
-                        expected != null && actual != null && actual.span.includes(expected.span)
+                        expected != null && actual != null && actual.span != expected.span
                     -> {
                     val expectedString = "expected = ${stringify(expected.value.value)}\n"
                     Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$expectedString```"))
                 }
 
                 expected == null && actual != null ||
-                        expected != null && actual != null && expected.span.includes(actual.span)
+                        expected != null && actual != null && expected.span != actual.span
                     -> {
                     val actualString = "actual   = ${stringify(actual.value.value)}\n"
                     Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$actualString```"))
                 }
 
-                expected != null && actual != null -> {
+                expected != null && actual != null && expected.span == actual.span -> {
                     val expectedString = "expected = ${stringify(expected.value.value)}\n"
                     val actualString = "actual   = ${stringify(actual.value.value)}\n"
                     Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$expectedString$actualString```"))
