@@ -204,11 +204,16 @@ sealed interface Value {
     data object Err : Value
 }
 
+data class CompletionEntry(
+    val name: String,
+    val type: Lazy<Term>,
+)
+
 data class ElaborateResult(
     val term: Term,
     val expectedTypes: IntervalTree<Lazy<Term>>,
     val actualTypes: IntervalTree<Lazy<Term>>,
-    val scopes: IntervalTree<String>,
+    val scopes: IntervalTree<CompletionEntry>,
     val diagnostics: List<Diagnostic>,
 )
 
@@ -222,7 +227,7 @@ private class ElaborateState {
     var values: PersistentList<Value> = persistentListOf()
     val expectedTypes: MutableList<IntervalTree.Entry<Lazy<Term>>> = mutableListOf()
     val actualTypes: MutableList<IntervalTree.Entry<Lazy<Term>>> = mutableListOf()
-    val scopes: MutableList<IntervalTree.Entry<String>> = mutableListOf()
+    val scopes: MutableList<IntervalTree.Entry<CompletionEntry>> = mutableListOf()
     val diagnostics: MutableList<Diagnostic> = mutableListOf()
     val size: Level get() = entries.size.toUInt()
 }
@@ -590,8 +595,9 @@ private fun ElaborateState.extend(
     value: Value = Value.Var(name, size),
 ) {
     val size = size
-    actualTypes.add(IntervalTree.Entry(nameSpan, lazy { size.quote(type) }))
-    scopes.add(IntervalTree.Entry(scope, name))
+    val quotedType = lazy { size.quote(type) }
+    actualTypes.add(IntervalTree.Entry(nameSpan, quotedType))
+    scopes.add(IntervalTree.Entry(scope, CompletionEntry(name, quotedType)))
     entries = entries.add(Entry(name, type))
     values = values.add(value)
 }

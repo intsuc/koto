@@ -100,7 +100,11 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
         val offset = params.position.toOffset(parseResult.lineStarts)
         val scopes = elaborateResult.scopes.getAll(offset)
         return completedFuture(Either.forRight(CompletionList(scopes.map { scope ->
-            CompletionItem(scope)
+            CompletionItem(scope.name).apply {
+                labelDetails = CompletionItemLabelDetails().apply {
+                    detail = " : ${stringify(scope.type.value)}"
+                }
+            }
         })))
     }
 }
