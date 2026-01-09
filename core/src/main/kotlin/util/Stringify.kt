@@ -3,15 +3,30 @@ package koto.core.util
 import koto.core.Pattern
 import koto.core.Term
 
-fun stringify(term: Term, minBp: UInt): String {
+fun quote(string: String): String {
+    val builder = StringBuilder()
+    for (c in string) {
+        when (c) {
+            '\n' -> builder.append("\\n")
+            '\r' -> builder.append("\\r")
+            '\t' -> builder.append("\\t")
+            '\\' -> builder.append("\\\\")
+            '\"' -> builder.append("\\\"")
+            else -> builder.append(c)
+        }
+    }
+    return "\"$builder\""
+}
+
+fun stringify(term: Term, minBp: UInt = 0u): String {
     return when (term) {
         is Term.Type -> "type"
         is Term.Bool -> "bool"
         is Term.BoolOf -> if (term.value) "true" else "false"
         is Term.If -> {
-            val cond = stringify(term.cond, 0u)
-            val thenBranch = stringify(term.thenBranch, 0u)
-            val elseBranch = stringify(term.elseBranch, 0u)
+            val cond = stringify(term.cond)
+            val thenBranch = stringify(term.thenBranch)
+            val elseBranch = stringify(term.elseBranch)
             "if $cond then $thenBranch else $elseBranch"
         }
 
@@ -20,39 +35,25 @@ fun stringify(term: Term, minBp: UInt): String {
         is Term.Float64 -> "float64"
         is Term.Float64Of -> "${term.value}"
         is Term.Str -> "str"
-        is Term.StrOf -> {
-            val builder = StringBuilder()
-            for (c in term.value) {
-                when (c) {
-                    '\n' -> builder.append("\\n")
-                    '\r' -> builder.append("\\r")
-                    '\t' -> builder.append("\\t")
-                    '\\' -> builder.append("\\\\")
-                    '\"' -> builder.append("\\\"")
-                    else -> builder.append(c)
-                }
-            }
-            "\"$builder\""
-        }
-
+        is Term.StrOf -> quote(term.value)
         is Term.Let -> {
-            val binder = stringifyPattern(term.binder, 0u)
-            val init = stringify(term.init, 0u)
-            val body = stringify(term.body, 0u)
+            val binder = stringifyPattern(term.binder)
+            val init = stringify(term.init)
+            val body = stringify(term.body)
             "let $binder = $init $body"
         }
 
         is Term.LetFun -> {
             val name = term.name
-            val binders = term.binders.joinToString(", ") { binder -> stringifyPattern(binder, 0u) }
-            val body = stringify(term.body, 0u)
-            val next = stringify(term.next, 0u)
+            val binders = term.binders.joinToString(", ") { binder -> stringifyPattern(binder) }
+            val body = stringify(term.body)
+            val next = stringify(term.next)
             "fun $name($binders) = $body $next"
         }
 
         is Term.Fun -> {
             val params = term.binders.zip(term.params).joinToString(", ") { (binder, param) ->
-                val binder = stringifyPattern(binder, 0u)
+                val binder = stringifyPattern(binder)
                 val param = stringify(param, 50u)
                 "$binder : $param"
             }
@@ -61,20 +62,20 @@ fun stringify(term: Term, minBp: UInt): String {
         }
 
         is Term.FunOf -> {
-            val binders = term.binders.joinToString(", ") { binder -> stringifyPattern(binder, 0u) }
+            val binders = term.binders.joinToString(", ") { binder -> stringifyPattern(binder) }
             val body = stringify(term.body, 50u)
             p(minBp, 50u, "fun($binders) = $body")
         }
 
         is Term.Call -> {
             val func = stringify(term.func, 500u)
-            val args = term.args.joinToString(", ") { arg -> stringify(arg, 0u) }
+            val args = term.args.joinToString(", ") { arg -> stringify(arg) }
             p(minBp, 500u, "$func($args)")
         }
 
         is Term.Record -> {
             val fields = term.fields.entries.joinToString(", ") { (key, value) ->
-                val value = stringify(value, 0u)
+                val value = stringify(value)
                 "$key = $value"
             }
             if (fields.isEmpty()) "{}" else "{ $fields }"
@@ -82,7 +83,7 @@ fun stringify(term: Term, minBp: UInt): String {
 
         is Term.RecordOf -> {
             val fields = term.fields.entries.joinToString(", ") { (key, value) ->
-                val value = stringify(value, 0u)
+                val value = stringify(value)
                 "$key = $value"
             }
             if (fields.isEmpty()) "{}" else "{ $fields }"
@@ -95,20 +96,20 @@ fun stringify(term: Term, minBp: UInt): String {
         }
 
         is Term.Refine -> {
-            val binder = stringifyPattern(term.binder, 0u)
+            val binder = stringifyPattern(term.binder)
             val base = stringify(term.base, 200u)
             val property = stringify(term.predicate, 200u)
             p(minBp, 200u, "$binder : $base @ $property")
         }
 
         is Term.Var -> term.text
-        is Term.Check -> stringify(term.target, 0u)
+        is Term.Check -> stringify(term.target)
         is Term.Meta -> "?"
         is Term.Err -> "error"
     }
 }
 
-private fun stringifyPattern(pattern: Pattern, minBp: UInt): String {
+private fun stringifyPattern(pattern: Pattern, minBp: UInt = 0u): String {
     return pattern
 }
 

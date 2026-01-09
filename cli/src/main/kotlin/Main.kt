@@ -2,6 +2,7 @@ package koto.cli
 
 import com.github.ajalt.clikt.core.*
 import com.github.ajalt.clikt.parameters.arguments.argument
+import koto.core.anf
 import koto.core.elaborate
 import koto.core.generate
 import koto.core.parse
@@ -41,7 +42,8 @@ class Build : CliktCommand() {
             echo("Build failed with errors.")
             exitProcess(1)
         } else {
-            val generateResult = generate(elaborateResult)
+            val anfTerm = anf(elaborateResult.term)
+            val generateResult = generate(anfTerm)
             val outputPath = inputPath.resolveSibling("${inputPath.nameWithoutExtension}.html")
             outputPath.writeText(generateResult.code)
             echo("Build succeeded. Output written to $outputPath")
