@@ -13,6 +13,8 @@ value class Span(private val value: ULong) {
 
     operator fun contains(offset: UInt): Boolean = offset in start..<endExclusive
 
+    fun includes(other: Span): Boolean = start < other.start || other.endExclusive < endExclusive
+
     companion object {
         val ZERO: Span = Span(0u, 0u)
         val ALL: Span = Span(UInt.MIN_VALUE, UInt.MAX_VALUE)

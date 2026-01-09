@@ -220,9 +220,9 @@ private data class Entry(
 private class ElaborateState {
     var entries: PersistentList<Entry> = persistentListOf()
     var values: PersistentList<Value> = persistentListOf()
-    val expectedTypes: MutableList<Pair<Span, Lazy<Term>>> = mutableListOf()
-    val actualTypes: MutableList<Pair<Span, Lazy<Term>>> = mutableListOf()
-    val scopes: MutableList<Pair<Span, String>> = mutableListOf()
+    val expectedTypes: MutableList<IntervalTree.Entry<Lazy<Term>>> = mutableListOf()
+    val actualTypes: MutableList<IntervalTree.Entry<Lazy<Term>>> = mutableListOf()
+    val scopes: MutableList<IntervalTree.Entry<String>> = mutableListOf()
     val diagnostics: MutableList<Diagnostic> = mutableListOf()
     val size: Level get() = entries.size.toUInt()
 }
@@ -586,8 +586,8 @@ private fun ElaborateState.extend(
     value: Value = Value.Var(name, size),
 ) {
     val size = size
-    actualTypes.add(nameSpan to lazy { size.quote(type) })
-    scopes.add(scope to name)
+    actualTypes.add(IntervalTree.Entry(nameSpan, lazy { size.quote(type) }))
+    scopes.add(IntervalTree.Entry(scope, name))
     entries = entries.add(Entry(name, type))
     values = values.add(value)
 }
@@ -958,7 +958,7 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
 
         is Concrete.Err -> Anno(Term.Err, Value.Err)
     }.also {
-        actualTypes.add(term.span to lazy { size.quote(it.type) })
+        actualTypes.add(IntervalTree.Entry(term.span, lazy { size.quote(it.type) }))
     }
 }
 
@@ -1143,7 +1143,7 @@ private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term
             }
         }
     }.also {
-        expectedTypes.add(term.span to lazy { size.quote(it.type) })
+        expectedTypes.add(IntervalTree.Entry(term.span, lazy { size.quote(it.type) }))
     }
 }
 

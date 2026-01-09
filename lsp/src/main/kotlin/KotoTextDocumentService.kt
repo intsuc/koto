@@ -56,20 +56,32 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
         val parseResult = parse(text)
         val elaborateResult = elaborate(parseResult)
         val offset = params.position.toOffset(parseResult.lineStarts)
-        val expectedType = elaborateResult.expectedTypes.getLeaf(offset)?.value
-        val actualType = elaborateResult.actualTypes.getLeaf(offset)?.value
-        if (expectedType == null && actualType == null) {
-            return completedFuture(null)
-        }
-        val expectedString = expectedType?.let { "expected = ${stringify(it, 0u)}\n" } ?: ""
-        val actualString = actualType?.let { "actual   = ${stringify(it, 0u)}\n" } ?: ""
+        val expected = elaborateResult.expectedTypes.getLeaf(offset)
+        val actual = elaborateResult.actualTypes.getLeaf(offset)
         return completedFuture(
-            Hover(
-                MarkupContent(
-                    MarkupKind.MARKDOWN,
-                    "```koto\n$expectedString$actualString```",
-                ),
-            ),
+            when {
+                expected != null && actual == null ||
+                        expected != null && actual != null && actual.span.includes(expected.span)
+                    -> {
+                    val expectedString = "expected = ${stringify(expected.value.value)}\n"
+                    Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$expectedString```"))
+                }
+
+                expected == null && actual != null ||
+                        expected != null && actual != null && expected.span.includes(actual.span)
+                    -> {
+                    val actualString = "actual   = ${stringify(actual.value.value)}\n"
+                    Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$actualString```"))
+                }
+
+                expected != null && actual != null -> {
+                    val expectedString = "expected = ${stringify(expected.value.value)}\n"
+                    val actualString = "actual   = ${stringify(actual.value.value)}\n"
+                    Hover(MarkupContent(MarkupKind.MARKDOWN, "```koto\n$expectedString$actualString```"))
+                }
+
+                else -> null
+            }
         )
     }
 

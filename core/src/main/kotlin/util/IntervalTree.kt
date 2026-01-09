@@ -3,7 +3,10 @@ package koto.core.util
 class IntervalTree<V> private constructor(
     private val root: Node<V>,
 ) {
-    private typealias Entry<V> = Pair<Span, V>
+    data class Entry<V>(
+        val span: Span,
+        val value: V,
+    )
 
     private class Node<V>(
         val span: Span,
@@ -24,7 +27,7 @@ class IntervalTree<V> private constructor(
         return out
     }
 
-    fun getLeaf(offset: UInt): V? {
+    fun getLeaf(offset: UInt): Entry<V>? {
         var node = root
         var best: Node<V>? = null
 
@@ -34,7 +37,9 @@ class IntervalTree<V> private constructor(
             best = node
         }
 
-        return best?.values?.firstOrNull()
+        return best?.values?.firstOrNull()?.let { value ->
+            Entry(best.span, value)
+        }
     }
 
     private fun findChildContaining(children: List<Node<V>>, offset: UInt): Node<V>? {
