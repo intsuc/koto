@@ -21,11 +21,12 @@ class ElaborateTest {
         }
         return files.map { path ->
             dynamicTest("success elaborate ${path.fileName}") {
+                val cache = Cache()
                 val text = path.readText()
                 val parseResult = parse(text)
                 assertTrue(parseResult.diagnostics.none { it.severity == Severity.ERROR })
                 parseResult.diagnostics.forEach { println(it) }
-                val elaborateResult = elaborate(parseResult)
+                val elaborateResult = elaborate(parseResult, cache, path)
                 assertTrue(elaborateResult.diagnostics.none { it.severity == Severity.ERROR })
                 elaborateResult.diagnostics.forEach { println(it) }
             }
@@ -40,11 +41,12 @@ class ElaborateTest {
         }
         return files.map { path ->
             dynamicTest("failure elaborate ${path.fileName}") {
+                val cache = Cache()
                 val text = path.readText()
                 val parseResult = parse(text)
                 assertTrue(parseResult.diagnostics.none { it.severity == Severity.ERROR })
                 parseResult.diagnostics.forEach { println(it) }
-                val elaborateResult = elaborate(parseResult)
+                val elaborateResult = elaborate(parseResult, cache, path)
                 assertFalse(elaborateResult.diagnostics.none { it.severity == Severity.ERROR })
                 elaborateResult.diagnostics.forEach { println(it) }
             }

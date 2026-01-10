@@ -3,6 +3,7 @@ package koto.core
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import koto.core.util.*
+import java.nio.file.Path
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
@@ -211,6 +212,7 @@ data class CompletionEntry(
 
 data class ElaborateResult(
     val term: Term,
+    val type: Term,
     val expectedTypes: IntervalTree<Lazy<Term>>,
     val actualTypes: IntervalTree<Lazy<Term>>,
     val completionEntries: IntervalTree<CompletionEntry>,
@@ -222,7 +224,10 @@ private data class Entry(
     val type: Value,
 )
 
-private class ElaborateState {
+private class ElaborateState(
+    val cache: Cache,
+    val path: Path,
+) {
     var entries: PersistentList<Entry> = persistentListOf()
     var values: PersistentList<Value> = persistentListOf()
     val expectedTypes: MutableList<IntervalTree.Entry<Lazy<Term>>> = mutableListOf()
@@ -968,7 +973,13 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
 
         // import ""
         is Concrete.Import -> {
-            diagnoseTerm("`import` is not implemented yet", term.span, Severity.ERROR)
+            val uri = "${path.resolveSibling(term.path).normalize().toUri()}.ヿ"
+            val imported = cache.fetchElaborateResult(uri)
+            val type = persistentListOf<Value>().eval(imported.type)
+            Anno(
+                imported.term,
+                type,
+            )
         }
 
         is Concrete.Err -> Anno(Term.Err, Value.Err)
@@ -1162,12 +1173,21 @@ private fun ElaborateState.checkTerm(term: Concrete, expected: Value): Anno<Term
     }
 }
 
-fun elaborate(input: ParseResult): ElaborateResult {
-    return ElaborateState().run {
-        val term = synthTerm(input.term).target
+fun elaborate(input: ParseResult, cache: Cache, path: Path): ElaborateResult {
+    return ElaborateState(cache, path).run {
+        diagnostics.addAll(input.diagnostics)
+        val term = synthTerm(input.term)
+        val type = 0u.quote(term.type)
         val expectedTypes = IntervalTree.of(expectedTypes)
         val actualTypes = IntervalTree.of(actualTypes)
-        val scopes = IntervalTree.of(completionEntries)
-        ElaborateResult(term, expectedTypes, actualTypes, scopes, diagnostics)
+        val completionEntries = IntervalTree.of(this.completionEntries)
+        ElaborateResult(
+            term.target,
+            type,
+            expectedTypes,
+            actualTypes,
+            completionEntries,
+            diagnostics,
+        )
     }
 }

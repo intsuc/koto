@@ -2,10 +2,7 @@ package koto.cli
 
 import com.github.ajalt.clikt.core.*
 import com.github.ajalt.clikt.parameters.arguments.argument
-import koto.core.anf
-import koto.core.elaborate
-import koto.core.generate
-import koto.core.parse
+import koto.core.*
 import koto.core.util.Severity
 import koto.lsp.KotoLanguageServer
 import kotlin.io.path.Path
@@ -27,9 +24,10 @@ class Build : CliktCommand() {
     override fun run() {
         val inputPath = Path(input)
         echo("Building $input")
+        val cache = Cache()
         val text = inputPath.readText()
         val parseResult = parse(text)
-        val elaborateResult = elaborate(parseResult)
+        val elaborateResult = elaborate(parseResult, cache, inputPath)
         val diagnostics = parseResult.diagnostics + elaborateResult.diagnostics
         var hasErrors = false
         for (diagnostic in diagnostics) {
