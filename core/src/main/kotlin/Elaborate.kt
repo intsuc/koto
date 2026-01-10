@@ -966,6 +966,11 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
             target
         }
 
+        // import ""
+        is Concrete.Import -> {
+            diagnoseTerm("`import` is not implemented yet", term.span, Severity.ERROR)
+        }
+
         is Concrete.Err -> Anno(Term.Err, Value.Err)
     }.also {
         actualTypes.add(IntervalTree.Entry(term.span, lazy { size.quote(it.type) }))

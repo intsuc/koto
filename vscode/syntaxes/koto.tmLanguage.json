@@ -9,7 +9,7 @@
       "name": "comment.line.koto"
     },
     {
-      "match": "\\b(?:let|fun|if|then|else)\\b|[:=→.@]",
+      "match": "\\b(?:let|fun|if|then|else|import)\\b|[:=→.@]",
       "name": "keyword.koto"
     },
     {

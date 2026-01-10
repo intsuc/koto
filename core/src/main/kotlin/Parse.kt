@@ -111,6 +111,12 @@ sealed interface Concrete {
         override val span: Span,
     ) : Concrete
 
+    // import ""
+    data class Import(
+        val path: String,
+        override val span: Span,
+    ) : Concrete
+
     data class Err(
         val message: String,
         override val span: Span,
@@ -178,6 +184,83 @@ private fun ParseState.diagnoseTerm(message: String, span: Span): Concrete {
     return Concrete.Err(message, span)
 }
 
+private fun ParseState.parseString(): Pair<String, Span> {
+    val start = cursor
+    skip() // "
+    val builder = StringBuilder()
+    while (peekable()) {
+        when (val c = peek()) {
+            '"' -> {
+                skip() // "
+                break
+            }
+
+            '\n', '\r' -> {
+                diagnostics.add(Diagnostic("Unfinished string literal", Span(cursor, cursor + 1u), Severity.ERROR))
+                break
+            }
+
+            '\\' -> {
+                skip() // \
+                if (!peekable()) {
+                    diagnostics.add(
+                        Diagnostic(
+                            "Unfinished escape sequence",
+                            Span(cursor - 1u, cursor),
+                            Severity.ERROR
+                        )
+                    )
+                    break
+                }
+                when (val escaped = peek()) {
+                    'n' -> {
+                        builder.append('\n')
+                        skip()
+                    }
+
+                    'r' -> {
+                        builder.append('\r')
+                        skip()
+                    }
+
+                    't' -> {
+                        builder.append('\t')
+                        skip()
+                    }
+
+                    '\\' -> {
+                        builder.append('\\')
+                        skip()
+                    }
+
+                    '"' -> {
+                        builder.append('"')
+                        skip()
+                    }
+
+                    else -> {
+                        diagnostics.add(
+                            Diagnostic(
+                                "Unknown escape sequence: \\$escaped",
+                                Span(cursor - 1u, cursor + 1u),
+                                Severity.ERROR
+                            )
+                        )
+                        builder.append(escaped)
+                        skip()
+                    }
+                }
+            }
+
+            else -> {
+                builder.append(c)
+                skip()
+            }
+        }
+    }
+    return builder.toString() to Span(start, cursor)
+}
+
 private fun ParseState.parseWord(): Pair<String, Span> {
     val start = cursor
     skipWhile {
@@ -243,80 +326,8 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
     }
 
     if (peekable() && peek() == '"') {
-        val start = cursor
-        skip() // "
-        val builder = StringBuilder()
-        while (peekable()) {
-            when (val c = peek()) {
-                '"' -> {
-                    skip() // "
-                    break
-                }
-
-                '\n', '\r' -> {
-                    diagnostics.add(Diagnostic("Unfinished string literal", Span(cursor, cursor + 1u), Severity.ERROR))
-                    break
-                }
-
-                '\\' -> {
-                    skip() // \
-                    if (!peekable()) {
-                        diagnostics.add(
-                            Diagnostic(
-                                "Unfinished escape sequence",
-                                Span(cursor - 1u, cursor),
-                                Severity.ERROR
-                            )
-                        )
-                        break
-                    }
-                    when (val escaped = peek()) {
-                        'n' -> {
-                            builder.append('\n')
-                            skip()
-                        }
-
-                        'r' -> {
-                            builder.append('\r')
-                            skip()
-                        }
-
-                        't' -> {
-                            builder.append('\t')
-                            skip()
-                        }
-
-                        '\\' -> {
-                            builder.append('\\')
-                            skip()
-                        }
-
-                        '"' -> {
-                            builder.append('"')
-                            skip()
-                        }
-
-                        else -> {
-                            diagnostics.add(
-                                Diagnostic(
-                                    "Unknown escape sequence: \\$escaped",
-                                    Span(cursor - 1u, cursor + 1u),
-                                    Severity.ERROR
-                                )
-                            )
-                            builder.append(escaped)
-                            skip()
-                        }
-                    }
-                }
-
-                else -> {
-                    builder.append(c)
-                    skip()
-                }
-            }
-        }
-        return Concrete.StrOf(builder.toString(), Span(start, cursor))
+        val (value, span) = parseString()
+        return Concrete.StrOf(value, span)
     }
 
     if (peekable() && when (peek()) {
@@ -471,6 +482,22 @@ private fun ParseState.parseHead(minBp: UInt): Concrete {
                 elseBranch = elseBranch,
                 span = Span(span.start, cursor),
             )
+        }
+
+        // import ""
+        "import" -> {
+            skipWhitespace()
+            if (peekable() && peek() == '"') {
+                val (path, pathSpan) = parseString()
+                Concrete.Import(
+                    path = path,
+                    span = Span(span.start, pathSpan.endExclusive),
+                )
+            } else {
+                val start = cursor
+                val _ = diagnoseTerm("Expected string literal after `import`", Span(start, start + 1u))
+                Concrete.Err("Expected string literal after `import`", Span(span.start, cursor))
+            }
         }
 
         else if text.isNotEmpty() -> {

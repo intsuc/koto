@@ -1,0 +1,3 @@
+let - : int64 = import "./imported"
+let - : int64 = import "./sub/imported"
+type
