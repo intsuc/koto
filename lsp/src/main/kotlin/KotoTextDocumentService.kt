@@ -14,30 +14,36 @@ import java.util.concurrent.CompletableFuture.completedFuture
 
 internal class KotoTextDocumentService : LanguageClientAware, TextDocumentService {
     private lateinit var client: LanguageClient
-    private val cache: Cache = Cache()
+    private val cache: Cache = Cache {
+        client.logMessage(MessageParams(MessageType.Log, it))
+    }
 
     override fun connect(client: LanguageClient) {
         this.client = client
     }
 
     override fun didOpen(params: DidOpenTextDocumentParams) {
-        val _ = cache.update(params.textDocument.uri, params.textDocument.text)
+        val uri = normalizeUri(params.textDocument.uri)
+        cache.update(uri, params.textDocument.text)
     }
 
     override fun didChange(params: DidChangeTextDocumentParams) {
-        val _ = cache.update(params.textDocument.uri, params.contentChanges.last().text)
+        val uri = normalizeUri(params.textDocument.uri)
+        cache.update(uri, params.contentChanges.last().text)
     }
 
     override fun didClose(params: DidCloseTextDocumentParams) {
-        cache.remove(params.textDocument.uri)
+        val uri = normalizeUri(params.textDocument.uri)
+        cache.remove(uri)
     }
 
     override fun didSave(params: DidSaveTextDocumentParams) {
     }
 
     override fun diagnostic(params: DocumentDiagnosticParams): CompletableFuture<DocumentDiagnosticReport> {
-        val parseResult = cache.fetchParseResult(params.textDocument.uri)
-        val elaborateResult = cache.fetchElaborateResult(params.textDocument.uri)
+        val uri = normalizeUri(params.textDocument.uri)
+        val parseResult = cache.fetchParseResult(uri)
+        val elaborateResult = cache.fetchElaborateResult(uri)
         return completedFuture(DocumentDiagnosticReport(RelatedFullDocumentDiagnosticReport(elaborateResult.diagnostics.map { diagnostic ->
             val range = diagnostic.span.toRange(parseResult.lineStarts)
             Diagnostic(range, diagnostic.message, diagnostic.severity.toLsp(), "ヿ")
@@ -45,8 +51,9 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
     }
 
     override fun hover(params: HoverParams): CompletableFuture<Hover?> {
-        val parseResult = cache.fetchParseResult(params.textDocument.uri)
-        val elaborateResult = cache.fetchElaborateResult(params.textDocument.uri)
+        val uri = normalizeUri(params.textDocument.uri)
+        val parseResult = cache.fetchParseResult(uri)
+        val elaborateResult = cache.fetchElaborateResult(uri)
         val offset = params.position.toOffset(parseResult.lineStarts)
         val expected = elaborateResult.expectedTypes.getLeaf(offset)
         val actual = elaborateResult.actualTypes.getLeaf(offset)
@@ -85,8 +92,9 @@ internal class KotoTextDocumentService : LanguageClientAware, TextDocumentServic
     }
 
     override fun completion(params: CompletionParams): CompletableFuture<Either<List<CompletionItem>, CompletionList>> {
-        val parseResult = cache.fetchParseResult(params.textDocument.uri)
-        val elaborateResult = cache.fetchElaborateResult(params.textDocument.uri)
+        val uri = normalizeUri(params.textDocument.uri)
+        val parseResult = cache.fetchParseResult(uri)
+        val elaborateResult = cache.fetchElaborateResult(uri)
         val offset = params.position.toOffset(parseResult.lineStarts)
         val entries = elaborateResult.completionEntries.getAll(offset)
         val deduplicatedEntries = mutableMapOf<String, CompletionEntry>()

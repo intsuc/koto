@@ -5,6 +5,8 @@ import koto.core.util.Span
 import org.eclipse.lsp4j.DiagnosticSeverity
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.Range
+import java.net.URI
+import kotlin.io.path.toPath
 
 fun Span.toRange(lineStarts: List<UInt>): Range {
     fun offsetToPosition(offset: UInt): Position {
@@ -30,4 +32,8 @@ fun Severity.toLsp(): DiagnosticSeverity {
         Severity.ERROR -> DiagnosticSeverity.Error
         Severity.WARNING -> DiagnosticSeverity.Warning
     }
+}
+
+fun normalizeUri(uri: String): String {
+    return URI.create(uri).toPath().toUri().toString()
 }

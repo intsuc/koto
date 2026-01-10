@@ -7,6 +7,8 @@ import java.nio.file.Path
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
+import kotlin.io.path.exists
+import kotlin.io.path.isRegularFile
 
 /** de Bruijn index */
 typealias Index = UInt
@@ -213,6 +215,7 @@ data class CompletionEntry(
 data class ElaborateResult(
     val term: Term,
     val type: Term,
+    val dependencies: Set<Cache.Uri>,
     val expectedTypes: IntervalTree<Lazy<Term>>,
     val actualTypes: IntervalTree<Lazy<Term>>,
     val completionEntries: IntervalTree<CompletionEntry>,
@@ -230,6 +233,7 @@ private class ElaborateState(
 ) {
     var entries: PersistentList<Entry> = persistentListOf()
     var values: PersistentList<Value> = persistentListOf()
+    val dependencies: MutableSet<Cache.Uri> = mutableSetOf()
     val expectedTypes: MutableList<IntervalTree.Entry<Lazy<Term>>> = mutableListOf()
     val actualTypes: MutableList<IntervalTree.Entry<Lazy<Term>>> = mutableListOf()
     val completionEntries: MutableList<IntervalTree.Entry<CompletionEntry>> = mutableListOf()
@@ -973,13 +977,21 @@ private fun ElaborateState.synthTerm(term: Concrete): Anno<Term> {
 
         // import ""
         is Concrete.Import -> {
-            val uri = "${path.resolveSibling(term.path).normalize().toUri()}.ヿ"
-            val imported = cache.fetchElaborateResult(uri)
-            val type = persistentListOf<Value>().eval(imported.type)
-            Anno(
-                imported.term,
-                type,
-            )
+            val targetPath = path.resolveSibling(term.path).normalize().let {
+                it.resolveSibling("${it.fileName}.ヿ")
+            }
+            if (targetPath.exists() && targetPath.isRegularFile()) {
+                val targetUri = targetPath.toUri().toString()
+                dependencies.add(targetUri)
+                val imported = cache.fetchElaborateResult(targetUri)
+                val type = persistentListOf<Value>().eval(imported.type)
+                Anno(
+                    imported.term,
+                    type,
+                )
+            } else {
+                diagnoseTerm("Cannot find `${term.path}`", term.span, Severity.ERROR)
+            }
         }
 
         is Concrete.Err -> Anno(Term.Err, Value.Err)
@@ -1184,6 +1196,7 @@ fun elaborate(input: ParseResult, cache: Cache, path: Path): ElaborateResult {
         ElaborateResult(
             term.target,
             type,
+            dependencies,
             expectedTypes,
             actualTypes,
             completionEntries,

@@ -1,0 +1,2 @@
+let x : int64 = import "./imported"
+x
